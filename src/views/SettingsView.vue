@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, defineEmits, computed } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Speaker, Headphones, Monitor, Bluetooth, Volume2, ArrowLeft, ChevronDown, ChevronUp } from "lucide-vue-next";
 
@@ -158,7 +158,7 @@ onMounted(async () => {
   height: 280px;
   padding: 12px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-color);
   overflow-y: auto;
 }
 
@@ -174,8 +174,8 @@ onMounted(async () => {
   height: 28px;
   border: none;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -183,13 +183,13 @@ onMounted(async () => {
   transition: all 0.2s;
   backdrop-filter: blur(10px) saturate(180%);
   -webkit-backdrop-filter: blur(10px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
 }
 
 .back-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--glass-bg) 120%, var(--theme-color));
+  color: var(--text-color);
+  border-color: var(--theme-color);
 }
 
 h2 {
@@ -210,7 +210,7 @@ h2 {
 
 .setting-hint {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   margin: 0 0 8px 0;
   line-height: 1.4;
 }
@@ -224,8 +224,8 @@ h2 {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
@@ -234,8 +234,7 @@ h2 {
 }
 
 .dropdown-trigger:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--theme-color);
 }
 
 .dropdown-value {
@@ -243,7 +242,7 @@ h2 {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-color);
 }
 
 .dropdown-icon {
@@ -252,11 +251,11 @@ h2 {
 }
 
 .placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-secondary);
 }
 
 .chevron {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -265,15 +264,15 @@ h2 {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: rgba(28, 28, 32, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   max-height: 180px;
   overflow-y: auto;
   z-index: 10;
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .dropdown-item {
@@ -286,11 +285,11 @@ h2 {
 }
 
 .dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--theme-color) 10%, transparent);
 }
 
 .dropdown-item.selected {
-  background: rgba(0, 120, 212, 0.15);
+  background: color-mix(in srgb, var(--theme-color) 15%, transparent);
 }
 
 .item-content {
@@ -298,7 +297,7 @@ h2 {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-color);
 }
 
 .check {
@@ -316,12 +315,12 @@ h2 {
 .toggle-switch {
   width: 44px;
   height: 24px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text-color) 10%, transparent);
   border-radius: 12px;
   cursor: pointer;
   position: relative;
   transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
 }
 
 .toggle-switch.active {
@@ -347,6 +346,6 @@ h2 {
 
 .toggle-label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
 }
 </style>

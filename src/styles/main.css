@@ -6,6 +6,15 @@
   --glass-blur: 20px;
   --glass-saturation: 180%;
   --acrylic-noise-opacity: 0.02;
+  --text-color: rgba(255, 255, 255, 0.9);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="light"] {
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --text-color: rgba(0, 0, 0, 0.9);
+  --text-secondary: rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -24,6 +33,7 @@ html, body {
 body {
   font-family: 'HarmonyOS Sans', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   background: transparent;
+  color: var(--text-color);
 }
 
 #app {
@@ -58,22 +68,48 @@ body {
   z-index: -1;
 }
 
+/* 深色模式 - 高级材质 */
 #app.advanced-material::before {
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.12), 
-    rgba(255, 255, 255, 0.05)
+  background: linear-gradient(145deg, 
+    rgba(255, 255, 255, 0.08), 
+    rgba(255, 255, 255, 0.02)
   );
-  backdrop-filter: blur(30px) saturate(200%);
-  -webkit-backdrop-filter: blur(30px) saturate(200%);
+  backdrop-filter: blur(35px) saturate(220%);
+  -webkit-backdrop-filter: blur(35px) saturate(220%);
 }
 
 #app.advanced-material::after {
-  opacity: 0.04;
+  opacity: 0.03;
 }
 
 #app.advanced-material {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    0 8px 40px rgba(0, 0, 0, 0.25),
+    0 0 80px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 浅色模式 - 高级材质 */
+[data-theme="light"] #app.advanced-material::before {
+  background: linear-gradient(145deg, 
+    rgba(255, 255, 255, 0.55), 
+    rgba(255, 255, 255, 0.35)
+  );
+  backdrop-filter: blur(35px) saturate(220%);
+  -webkit-backdrop-filter: blur(35px) saturate(220%);
+}
+
+[data-theme="light"] #app.advanced-material::after {
+  opacity: 0.025;
+}
+
+[data-theme="light"] #app.advanced-material {
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 
+    0 8px 40px rgba(0, 0, 0, 0.1),
+    0 0 80px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05);
 }

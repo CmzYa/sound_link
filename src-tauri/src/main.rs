@@ -239,6 +239,28 @@ fn get_system_accent_color() -> Option<String> {
     None
 }
 
+#[tauri::command]
+#[cfg(target_os = "windows")]
+fn get_system_theme() -> Option<bool> {
+    use winreg::RegKey;
+use winreg::enums::*;
+    
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let key = hkcu
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        .ok()?;
+    
+    let use_light_theme: u32 = key.get_value("SystemUsesLightTheme").ok()?;
+    
+    Some(use_light_theme == 0)
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "windows"))]
+fn get_system_theme() -> Option<bool> {
+    None
+}
+
 fn show_window(window: &WebviewWindow) {
     match window.is_visible() {
         Ok(true) => {
@@ -403,6 +425,7 @@ fn main() {
             get_config,
             set_config,
             get_system_accent_color,
+            get_system_theme,
         ])
         .setup(|app| {
             setup_tray(app.handle())?;
