@@ -1,6 +1,12 @@
 use super::{Device, DeviceCategory, DeviceManager};
 use std::process::Command;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 pub struct AudioDeviceManager;
 
 impl AudioDeviceManager {
@@ -11,14 +17,18 @@ impl AudioDeviceManager {
 
 impl DeviceManager for AudioDeviceManager {
     fn get_devices(&self) -> Vec<Device> {
-        let output = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-Command",
-                "chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' } | ForEach-Object { \"$($_.Id)|$($_.Name)\" }"
-            ])
-            .output();
+        let mut cmd = Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-Command",
+            "chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' } | ForEach-Object { \"$($_.Id)|$($_.Name)\" }"
+        ]);
+        
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        
+        let output = cmd.output();
         
         let mut devices = Vec::new();
         
@@ -49,15 +59,18 @@ impl DeviceManager for AudioDeviceManager {
     }
     
     fn get_default(&self) -> Option<String> {
-        let output = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-Command",
-                "chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (Get-AudioDevice -Playback).Id"
-            ])
-            .output()
-            .ok()?;
+        let mut cmd = Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-Command",
+            "chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (Get-AudioDevice -Playback).Id"
+        ]);
+        
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        
+        let output = cmd.output().ok()?;
         
         let stdout = String::from_utf8_lossy(&output.stdout);
         let id = stdout.trim().to_string();
@@ -69,14 +82,18 @@ impl DeviceManager for AudioDeviceManager {
             return Ok(());
         }
         
-        let output = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-Command",
-                &format!("chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Set-AudioDevice -Id '{}' -Default", device_id)
-            ])
-            .output()
+        let mut cmd = Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-Command",
+            &format!("chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Set-AudioDevice -Id '{}' -Default", device_id)
+        ]);
+        
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        
+        let output = cmd.output()
             .map_err(|e| format!("Failed to execute command: {}", e))?;
         
         if !output.status.success() {
