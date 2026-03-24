@@ -48,7 +48,7 @@ Install-Module -Name AudioDeviceCmdlets -Force
 
 1. 克隆仓库
    ```bash
-   git clone https://github.com/yourusername/sound-link.git
+   git clone https://github.com/CmzYa/sound_link.git
    cd sound-link
    ```
 

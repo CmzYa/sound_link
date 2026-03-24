@@ -15,6 +15,11 @@ on:
 permissions:
   contents: write
 
+env:
+  AUTHOR: CmzYa
+  REPO: sound_link
+  REPO_URL: https://github.com/CmzYa/sound_link
+
 jobs:
   validate-tag:
     name: 校验 Tag 来源并提取版本
@@ -96,18 +101,34 @@ jobs:
           tagName: ${{ needs.validate-tag.outputs.tag }}
           releaseName: "Sound Link v${{ needs.validate-tag.outputs.version }}"
           releaseBody: |
-            ## 发布 Sound Link v${{ needs.validate-tag.outputs.version }}
+            ## Sound Link v${{ needs.validate-tag.outputs.version }}
             
-            ### 下载说明
-            - **Windows x64**: 下载 `.msi` 或 `.exe` 文件
-            - **Windows ARM64**: 下载对应的安装包
+            > 可视化音频设备切换工具
             
             ### 功能特点
-            - 可视化显示系统音频设备
-            - 一键切换音频输出设备
-            - 跟随系统主题（深色/浅色模式）
-            - 跟随系统主题色
-            - 高级毛玻璃材质效果
+            - 🎧 可视化显示系统音频设备
+            - ⚡ 一键切换音频输出设备
+            - 🌙 跟随系统主题（深色/浅色模式）
+            - 🎨 跟随系统主题色
+            - ✨ 高级毛玻璃材质效果
+            
+            ### 下载说明
+            | 平台 | 架构 | 文件格式 |
+            |------|------|----------|
+            | Windows | x64 | `.msi` / `.exe` |
+            | Windows | ARM64 | `.msi` / `.exe` |
+            
+            ### 安装依赖
+            使用前需安装 [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets) PowerShell 模块：
+            ```powershell
+            Install-Module -Name AudioDeviceCmdlets -Force
+            ```
+            
+            ---
+            
+            **作者**: [@CmzYa](https://github.com/CmzYa)  
+            **仓库**: [https://github.com/CmzYa/sound_link](https://github.com/CmzYa/sound_link)  
+            **许可证**: MIT License
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
