@@ -1,5 +1,5 @@
-use std::process::Command;
 use super::{Device, DeviceCategory, DeviceManager};
+use std::process::Command;
 
 pub struct AudioDeviceManager;
 
