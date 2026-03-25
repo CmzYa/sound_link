@@ -85,6 +85,7 @@ function handleClick() {
   cursor: pointer;
   z-index: 5;
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
 }
 
 .device-ball:hover {
@@ -127,8 +128,6 @@ function handleClick() {
   box-shadow: 
     0 2px 8px rgba(0, 0, 0, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
 }
 
 .device-ball.unsnapped:hover .ball-inner {
@@ -163,11 +162,6 @@ function handleClick() {
   text-overflow: ellipsis;
 }
 
-/* 激活动画 */
-.device-ball.snapped {
-  animation: glow-pulse 2s ease-in-out infinite;
-}
-
 /* 深色模式 - 高级材质激活状态 */
 .device-ball.snapped.advanced-material .ball-inner {
   background: linear-gradient(145deg, 
@@ -175,8 +169,6 @@ function handleClick() {
     color-mix(in srgb, var(--theme-color) 40%, rgba(255, 255, 255, 0.2))
   );
   border: 1px solid rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(20px) saturate(200%);
-  -webkit-backdrop-filter: blur(20px) saturate(200%);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.25),
     inset 0 2px 0 rgba(255, 255, 255, 0.35),
@@ -190,8 +182,6 @@ function handleClick() {
     rgba(255, 255, 255, 0.08)
   );
   border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(20px) saturate(200%);
-  -webkit-backdrop-filter: blur(20px) saturate(200%);
   box-shadow: 
     0 4px 20px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
@@ -295,14 +285,5 @@ function handleClick() {
 /* 浅色模式 - 名称 */
 [data-theme="light"] .device-ball .name {
   text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9);
-}
-
-@keyframes glow-pulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 8px var(--theme-glow));
-  }
-  50% {
-    filter: drop-shadow(0 0 16px var(--theme-glow));
-  }
 }
 </style>

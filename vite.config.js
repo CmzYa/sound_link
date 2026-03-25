@@ -14,5 +14,25 @@ export default defineConfig({
   },
   build: {
     outDir: "../output/dist",
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ["vue"],
+          lucide: ["lucide-vue-next"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 500,
+    cssMinify: true,
+  },
+  optimizeDeps: {
+    include: ["vue", "lucide-vue-next"],
   },
 });
