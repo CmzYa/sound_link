@@ -358,7 +358,6 @@ fn main() {
     let config = load_config();
     
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             config: Mutex::new(config),
             audio_manager: Mutex::new(AudioDeviceManager::new()),

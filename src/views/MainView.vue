@@ -247,7 +247,7 @@ onUnmounted(() => {
         />
         
         <div v-if="devices.length === 0" class="no-device-hint">
-          未检测到音频设备<br>请检查 AudioDeviceCmdlets 模块
+          未检测到音频设备
         </div>
       </div>
     </template>

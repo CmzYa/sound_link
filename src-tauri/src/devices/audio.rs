@@ -1,11 +1,16 @@
 use super::{Device, DeviceCategory, DeviceManager};
-use std::process::Command;
 
 #[cfg(windows)]
-use std::os::windows::process::CommandExt;
+use std::ffi::c_void;
 
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+use windows::{
+    core::*,
+    Win32::Media::Audio::*,
+    Win32::System::Com::*,
+    Win32::Storage::EnhancedStorage::PKEY_Devices_FriendlyName,
+    Win32::Foundation::BOOL,
+};
 
 pub struct AudioDeviceManager;
 
@@ -15,42 +20,60 @@ impl AudioDeviceManager {
     }
 }
 
+#[cfg(windows)]
 impl DeviceManager for AudioDeviceManager {
     fn get_devices(&self) -> Vec<Device> {
-        let mut cmd = Command::new("powershell");
-        cmd.args([
-            "-NoProfile",
-            "-ExecutionPolicy", "Bypass",
-            "-Command",
-            "chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-AudioDevice -List | Where-Object { $_.Type -eq 'Playback' } | ForEach-Object { \"$($_.Id)|$($_.Name)\" }"
-        ]);
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let result = self.get_devices_inner();
+            CoUninitialize();
+            result
+        }
+    }
+    
+    fn get_default(&self) -> Option<String> {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let result = self.get_default_inner();
+            CoUninitialize();
+            result
+        }
+    }
+    
+    fn set_default(&self, device_id: &str) -> std::result::Result<(), String> {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let result = self.set_default_inner(device_id);
+            CoUninitialize();
+            result
+        }
+    }
+}
+
+#[cfg(windows)]
+impl AudioDeviceManager {
+    unsafe fn get_devices_inner(&self) -> Vec<Device> {
+        let enumerator: IMMDeviceEnumerator = match CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) {
+            Ok(e) => e,
+            Err(_) => return Vec::new(),
+        };
         
-        #[cfg(windows)]
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        let collection = match enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
+        };
         
-        let output = cmd.output();
+        let count = match collection.GetCount() {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
+        };
         
         let mut devices = Vec::new();
         
-        if let Ok(output) = output {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            for line in stdout.lines() {
-                let line = line.trim();
-                if line.is_empty() { continue; }
-                if line.starts_with("Active code page:") { continue; }
-                
-                let parts: Vec<&str> = line.splitn(2, '|').collect();
-                if parts.len() == 2 {
-                    let id = parts[0].to_string();
-                    let raw_name = parts[1].to_string();
-                    let (device_type, clean_name) = parse_device_info(&id, &raw_name);
-                    
-                    devices.push(Device {
-                        id,
-                        name: clean_name,
-                        device_type,
-                        category: DeviceCategory::Audio,
-                    });
+        for i in 0..count {
+            if let Ok(device) = collection.Item(i) {
+                if let Some(d) = self.device_to_struct(&device) {
+                    devices.push(d);
                 }
             }
         }
@@ -58,50 +81,86 @@ impl DeviceManager for AudioDeviceManager {
         devices
     }
     
-    fn get_default(&self) -> Option<String> {
-        let mut cmd = Command::new("powershell");
-        cmd.args([
-            "-NoProfile",
-            "-ExecutionPolicy", "Bypass",
-            "-Command",
-            "chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (Get-AudioDevice -Playback).Id"
-        ]);
+    unsafe fn device_to_struct(&self, device: &IMMDevice) -> Option<Device> {
+        let id = device.GetId().ok()?;
+        let id_str = id.to_string().ok()?;
         
-        #[cfg(windows)]
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        let store = device.OpenPropertyStore(STGM_READ).ok()?;
         
-        let output = cmd.output().ok()?;
+        let prop_variant = store.GetValue(&PKEY_Devices_FriendlyName).ok()?;
         
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let id = stdout.trim().to_string();
-        if id.is_empty() { None } else { Some(id) }
+        let mut name = prop_variant.to_string();
+        
+        // 如果名字为空，使用设备 ID 作为后备
+        if name.is_empty() || name.trim().is_empty() {
+            name = id_str.clone();
+        }
+        
+        let (device_type, clean_name) = parse_device_info(&id_str, &name);
+        
+        // 确保 clean_name 不为空
+        let final_name = if clean_name.is_empty() || clean_name.trim().is_empty() {
+            id_str.clone()
+        } else {
+            clean_name
+        };
+        
+        Some(Device {
+            id: id_str,
+            name: final_name,
+            device_type,
+            category: DeviceCategory::Audio,
+        })
     }
     
-    fn set_default(&self, device_id: &str) -> Result<(), String> {
-        if device_id.is_empty() {
-            return Ok(());
-        }
+    unsafe fn get_default_inner(&self) -> Option<String> {
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
         
-        let mut cmd = Command::new("powershell");
-        cmd.args([
-            "-NoProfile",
-            "-ExecutionPolicy", "Bypass",
-            "-Command",
-            &format!("chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Set-AudioDevice -Id '{}' -Default", device_id)
-        ]);
+        let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole).ok()?;
         
-        #[cfg(windows)]
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        let id = device.GetId().ok()?;
         
-        let output = cmd.output()
-            .map_err(|e| format!("Failed to execute command: {}", e))?;
+        id.to_string().ok()
+    }
+    
+    unsafe fn set_default_inner(&self, device_id: &str) -> std::result::Result<(), String> {
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+            .map_err(|e| format!("Failed to create enumerator: {}", e))?;
         
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Failed to set device: {}", stderr));
-        }
+        let device = enumerator.GetDevice(&HSTRING::from(device_id))
+            .map_err(|e| format!("Failed to get device: {}", e))?;
+        
+        let id = device.GetId()
+            .map_err(|e| format!("Failed to get device id: {}", e))?;
+        
+        let policy_config = PolicyConfig::new()
+            .map_err(|e| format!("Failed to create PolicyConfig: {}", e))?;
+        
+        policy_config.set_default_endpoint(PCWSTR(id.as_ptr()), eConsole)
+            .map_err(|e| format!("Failed to set default endpoint: {}", e))?;
+        
+        policy_config.set_default_endpoint(PCWSTR(id.as_ptr()), eMultimedia)
+            .map_err(|e| format!("Failed to set default endpoint for multimedia: {}", e))?;
+        
+        policy_config.set_default_endpoint(PCWSTR(id.as_ptr()), eCommunications)
+            .map_err(|e| format!("Failed to set default endpoint for communications: {}", e))?;
         
         Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+impl DeviceManager for AudioDeviceManager {
+    fn get_devices(&self) -> Vec<Device> {
+        Vec::new()
+    }
+    
+    fn get_default(&self) -> Option<String> {
+        None
+    }
+    
+    fn set_default(&self, _device_id: &str) -> std::result::Result<(), String> {
+        Err("Not supported on this platform".to_string())
     }
 }
 
@@ -150,4 +209,74 @@ fn extract_hardware_name_english(raw_name: &str, _prefix: &str) -> String {
         }
     }
     raw_name.to_string()
+}
+
+#[cfg(windows)]
+const CLSID_PolicyConfig: GUID = GUID::from_u128(0x870af99c_171d_4f9e_af0d_e63df40c2bc9);
+
+#[cfg(windows)]
+const IID_IPolicyConfig: GUID = GUID::from_u128(0xf8679f50_850a_41cf_9c72_430f29029470);
+
+#[cfg(windows)]
+#[repr(C)]
+struct IPolicyConfigVtable {
+    query_interface: unsafe extern "system" fn(*mut c_void, *const GUID, *mut *mut c_void) -> HRESULT,
+    add_ref: unsafe extern "system" fn(*mut c_void) -> u32,
+    release: unsafe extern "system" fn(*mut c_void) -> u32,
+    get_mix_format: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut *mut WAVEFORMATEX) -> HRESULT,
+    get_device_format: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut *mut WAVEFORMATEX) -> HRESULT,
+    set_device_format: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut WAVEFORMATEX, *mut WAVEFORMATEX) -> HRESULT,
+    get_processing_period: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut i64) -> HRESULT,
+    set_processing_period: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut i64) -> HRESULT,
+    get_share_mode: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut AUDCLNT_SHAREMODE) -> HRESULT,
+    set_share_mode: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut AUDCLNT_SHAREMODE) -> HRESULT,
+    get_stream_flags: unsafe extern "system" fn(*mut c_void, PCWSTR, *mut u32) -> HRESULT,
+    set_stream_flags: unsafe extern "system" fn(*mut c_void, PCWSTR, u32) -> HRESULT,
+    set_default_endpoint: unsafe extern "system" fn(*mut c_void, PCWSTR, ERole) -> HRESULT,
+    set_endpoint_visibility: unsafe extern "system" fn(*mut c_void, PCWSTR, BOOL) -> HRESULT,
+}
+
+#[cfg(windows)]
+#[repr(transparent)]
+struct IPolicyConfig(*mut IPolicyConfigVtable);
+
+#[cfg(windows)]
+impl IPolicyConfig {
+    unsafe fn set_default_endpoint(&self, device_id: PCWSTR, role: ERole) -> Result<()> {
+        ((*self.0).set_default_endpoint)(self.0 as *mut c_void, device_id, role).ok()
+    }
+}
+
+#[cfg(windows)]
+struct PolicyConfig {
+    inner: IPolicyConfig,
+}
+
+#[cfg(windows)]
+impl PolicyConfig {
+    fn new() -> Result<Self> {
+        unsafe {
+            let unknown: IUnknown = CoCreateInstance(&CLSID_PolicyConfig, None, CLSCTX_ALL)?;
+            let mut ptr: *mut c_void = std::ptr::null_mut();
+            unknown.query(&IID_IPolicyConfig, &mut ptr).ok()?;
+            Ok(Self {
+                inner: IPolicyConfig(ptr as *mut IPolicyConfigVtable),
+            })
+        }
+    }
+    
+    unsafe fn set_default_endpoint(&self, device_id: PCWSTR, role: ERole) -> Result<()> {
+        self.inner.set_default_endpoint(device_id, role)
+    }
+}
+
+#[cfg(windows)]
+impl Drop for PolicyConfig {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.inner.0.is_null() {
+                ((*self.inner.0).release)(self.inner.0 as *mut c_void);
+            }
+        }
+    }
 }

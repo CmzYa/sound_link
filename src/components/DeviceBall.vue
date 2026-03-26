@@ -45,9 +45,9 @@ const deviceIcon = computed(() => {
 });
 
 const truncatedName = computed(() => {
-  const name = props.device.name;
+  const name = props.device.name || props.device.id || '未知设备';
   if (name.length <= 10) return name;
-  return name.substring(0, 8) + "..";
+  return name.substring(0, 8) + '..';
 });
 
 function handleClick() {
