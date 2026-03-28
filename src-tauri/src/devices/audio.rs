@@ -85,22 +85,27 @@ impl AudioDeviceManager {
         let id = device.GetId().ok()?;
         let id_str = id.to_string().ok()?;
         
-        let store = device.OpenPropertyStore(STGM_READ).ok()?;
+        // 尝试获取设备友好名称，如果失败则使用空字符串
+        let mut name = if let Ok(store) = device.OpenPropertyStore(STGM_READ) {
+            if let Ok(prop_variant) = store.GetValue(&PKEY_Devices_FriendlyName) {
+                prop_variant.to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
         
-        let prop_variant = store.GetValue(&PKEY_Devices_FriendlyName).ok()?;
-        
-        let mut name = prop_variant.to_string();
-        
-        // 如果名字为空，使用设备 ID 作为后备
+        // 如果名字为空，尝试从设备 ID 提取友好名称
         if name.is_empty() || name.trim().is_empty() {
-            name = id_str.clone();
+            name = extract_name_from_id(&id_str);
         }
         
         let (device_type, clean_name) = parse_device_info(&id_str, &name);
         
         // 确保 clean_name 不为空
         let final_name = if clean_name.is_empty() || clean_name.trim().is_empty() {
-            id_str.clone()
+            extract_name_from_id(&id_str)
         } else {
             clean_name
         };
@@ -162,6 +167,40 @@ impl DeviceManager for AudioDeviceManager {
     fn set_default(&self, _device_id: &str) -> std::result::Result<(), String> {
         Err("Not supported on this platform".to_string())
     }
+}
+
+// 从设备 ID 提取友好名称
+fn extract_name_from_id(id: &str) -> String {
+    // Windows 音频设备 ID 格式示例:
+    // {0.0.0.00000000}.{...}\\\\?SWD#MMDEVAPI#{0.0.0.00000000}.{...}#{eRender}#{...}
+    // 尝试提取其中的有用信息
+    
+    // 查找设备类型关键字
+    let id_lower = id.to_lowercase();
+    
+    if id_lower.contains("hdmi") {
+        return "HDMI 音频设备".to_string();
+    } else if id_lower.contains("usb") {
+        return "USB 音频设备".to_string();
+    } else if id_lower.contains("bluetooth") {
+        return "蓝牙音频设备".to_string();
+    } else if id_lower.contains("speaker") {
+        return "扬声器".to_string();
+    } else if id_lower.contains("headphone") {
+        return "耳机".to_string();
+    } else if id_lower.contains("microphone") || id_lower.contains("mic") {
+        return "麦克风".to_string();
+    }
+    
+    // 尝试从 ID 中提取 GUID 或其他标识符的最后部分
+    if let Some(last_part) = id.split('#').last() {
+        if !last_part.is_empty() && last_part.len() < 50 {
+            return last_part.to_string();
+        }
+    }
+    
+    // 如果无法提取，返回通用名称
+    "音频设备".to_string()
 }
 
 fn parse_device_info(id: &str, raw_name: &str) -> (String, String) {
