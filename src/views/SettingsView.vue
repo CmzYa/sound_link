@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { Speaker, Headphones, Monitor, Bluetooth, Volume2, ArrowLeft, ChevronDown, ChevronUp } from "lucide-vue-next";
 
 const emit = defineEmits(["close", "config-changed"]);
@@ -10,6 +11,7 @@ const selectedDeviceId = ref(null);
 const savedDeviceId = ref(null);
 const isDropdownOpen = ref(false);
 const advancedMaterial = ref(false);
+const appVersion = ref("");
 
 const selectedDevice = computed(() => {
   return devices.value.find(d => d.id === selectedDeviceId.value);
@@ -79,6 +81,11 @@ watch(advancedMaterial, () => {
 onMounted(async () => {
   await loadDevices();
   await loadConfig();
+  try {
+    appVersion.value = await getVersion();
+  } catch (e) {
+    console.error("Failed to get version:", e);
+  }
 });
 </script>
 
@@ -152,7 +159,7 @@ onMounted(async () => {
     
     <div class="about-section">
       <div class="about-title">Sound Link</div>
-      <div class="about-version">v0.1.1</div>
+      <div class="about-version">v{{ appVersion }}</div>
       <div class="about-desc">快速切换音频输出设备</div>
       <div class="about-links">
         <a href="https://github.com/CmzYa/sound_link" class="about-link" target="_blank">
@@ -162,7 +169,7 @@ onMounted(async () => {
           GitHub
         </a>
       </div>
-      <div class="about-license">MIT License</div>
+      <div class="about-license">GPL-3.0 License</div>
     </div>
   </div>
 </template>

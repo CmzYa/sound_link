@@ -1,6 +1,6 @@
 # Sound Link
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-blue.svg)](https://www.microsoft.com/windows)
 
 可视化音频设备切换工具
@@ -120,4 +120,4 @@ git push origin v1.0.0
 
 ## 许可证
 
-本项目基于 [MIT License](LICENSE) 开源。
+本项目基于 [GPL-3.0 License](LICENSE) 开源。

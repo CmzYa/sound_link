@@ -1,15 +1,11 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Release version (e.g., v0.1.0)'
         required: true
-        default: 'v0.1.1'
         type: string
 
 permissions:
@@ -21,42 +17,187 @@ env:
   REPO_URL: https://github.com/CmzYa/sound_link
 
 jobs:
-  validate-tag:
-    name: 校验 Tag 来源并提取版本
+  prepare-version:
+    name: 准备版本号并同步文件
     runs-on: ubuntu-22.04
     outputs:
-      tag: ${{ steps.meta.outputs.tag }}
-      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.content }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 校验 Tag 指向 main 分支提交
+      - name: 读取当前版本号
+        id: current
         run: |
           set -euo pipefail
-          git fetch origin main --no-tags
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "❌ 当前 tag (${GITHUB_REF_NAME}) 对应提交不在 main 分支上"
-            exit 1
-          fi
-          echo "✅ Tag 来源校验通过"
+          CURRENT_VERSION=$(jq -r '.version' package.json)
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "当前文件版本: $CURRENT_VERSION"
+          echo ""
+          echo "📋 当前版本号: $CURRENT_VERSION"
+          echo "   请在手动触发时输入新版本号（如: v0.1.4）"
 
-      - name: 提取版本信息
-        id: meta
+      - name: 确定目标版本
+        id: version
         run: |
           set -euo pipefail
-          TAG="${{ github.event.inputs.version || github.ref_name }}"
-          VERSION="$(echo "$TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+          VERSION="$(echo "$INPUT_VERSION" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
           if [ -z "$VERSION" ]; then
-            echo "❌ 无法从 tag 提取版本号: $TAG"
+            echo "❌ 无法从输入提取版本号: $INPUT_VERSION"
             exit 1
           fi
-
+          TAG="v$VERSION"
+          
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "✅ 发布版本: $VERSION"
+          echo "目标版本: $VERSION"
+
+      - name: 获取提交记录
+        id: commits
+        run: |
+          set -euo pipefail
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            echo "上次发布: $LAST_TAG"
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            echo "首次发布，获取最近20条提交"
+            COMMITS=$(git log -20 --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          # 转义换行符以便在 GitHub Actions 中传递
+          COMMITS="${COMMITS//'%'/'%25'}"
+          COMMITS="${COMMITS//$'\n'/'%0A'}"
+          COMMITS="${COMMITS//$'\r'/'%0D'}"
+          echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
+
+      - name: 生成更新日志
+        id: changelog
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commits = `${{ steps.commits.outputs.commits }}`.replace(/%0A/g, '\n').replace(/%0D/g, '').replace(/%25/g, '%');
+            const version = '${{ steps.version.outputs.version }}';
+            
+            if (!commits || commits.trim() === '') {
+              core.setOutput('content', '### 🚀 新功能与改进\n\n- 版本更新');
+              return;
+            }
+            
+            const prompt = `请根据以下 Git 提交记录，生成一份简洁的更新日志（中文）。
+            
+版本号: v${version}
+
+提交记录:
+${commits}
+
+要求:
+1. 按功能分类（新功能、改进、修复等）
+2. 每类列出 2-5 条主要更新
+3. 使用 emoji 增强可读性
+4. 保持简洁，不要冗余
+5. 只输出更新日志内容，不要其他说明
+
+格式示例:
+### ✨ 新功能
+- 添加 xxx 功能
+
+### 🔧 改进
+- 优化 xxx 性能
+
+### 🐛 修复
+- 修复 xxx 问题`;
+
+            try {
+              const response = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  model: 'gpt-4o-mini',
+                  messages: [{ role: 'user', content: prompt }],
+                  max_tokens: 1000,
+                  temperature: 0.7
+                })
+              });
+              
+              if (!response.ok) {
+                throw new Error(`API 请求失败: ${response.status}`);
+              }
+              
+              const data = await response.json();
+              let changelog = data.choices[0]?.message?.content || '### 🚀 更新\n\n- 版本更新';
+              core.setOutput('content', changelog);
+            } catch (error) {
+              console.log('AI 生成失败，使用默认更新日志:', error.message);
+              core.setOutput('content', '### 🚀 更新\n\n- 版本更新');
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 同步版本号到文件
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          CURRENT="${{ steps.current.outputs.version }}"
+          
+          if [ "$VERSION" != "$CURRENT" ]; then
+            echo "更新版本号: $CURRENT -> $VERSION"
+            
+            # 更新 package.json
+            jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
+            mv package.json.tmp package.json
+            
+            # 更新 tauri.conf.json
+            jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tauri.conf.json.tmp
+            mv tauri.conf.json.tmp src-tauri/tauri.conf.json
+            
+            # 更新 Cargo.toml
+            sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+            
+            echo "✅ 版本号已同步到所有文件"
+          else
+            echo "版本号未变化，跳过同步"
+          fi
+
+      - name: 提交版本更新
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          CURRENT="${{ steps.current.outputs.version }}"
+          
+          if [ "$VERSION" != "$CURRENT" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+            git commit -m "chore: bump version to $VERSION"
+            git push
+            echo "✅ 版本更新已提交"
+          fi
+
+  validate-tag:
+    name: 校验发布信息
+    needs: prepare-version
+    runs-on: ubuntu-22.04
+    outputs:
+      tag: ${{ needs.prepare-version.outputs.tag }}
+      version: ${{ needs.prepare-version.outputs.version }}
+      changelog: ${{ needs.prepare-version.outputs.changelog }}
+    steps:
+      - name: 显示发布信息
+        run: |
+          echo "✅ 手动触发发布"
+          echo "✅ 发布版本: ${{ needs.prepare-version.outputs.version }}"
+          echo ""
+          echo "📝 更新日志:"
+          echo "${{ needs.prepare-version.outputs.changelog }}"
 
   build-windows:
     name: 构建 Windows 版本
@@ -103,22 +244,17 @@ jobs:
           releaseBody: |
             ## Sound Link v${{ needs.validate-tag.outputs.version }}
             
-            > 可视化音频设备切换工具
+            ${{ needs.validate-tag.outputs.changelog }}
             
-            ### 功能特点
-            - 🎧 可视化显示系统音频设备
-            - ⚡ 一键切换音频输出设备
-            - 🌙 跟随系统主题（深色/浅色模式）
-            - 🎨 跟随系统主题色
-            - ✨ 高级毛玻璃材质效果
+            ---
             
-            ### 下载说明
+            ### 📥 下载说明
             | 平台 | 架构 | 文件格式 |
             |------|------|----------|
             | Windows | x64 | `.msi` / `.exe` |
             | Windows | ARM64 | `.msi` / `.exe` |
             
-            ### 安装依赖
+            ### 📦 安装依赖
             使用前需安装 [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets) PowerShell 模块：
             ```powershell
             Install-Module -Name AudioDeviceCmdlets -Force
