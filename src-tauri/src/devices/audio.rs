@@ -251,10 +251,10 @@ fn extract_hardware_name_english(raw_name: &str, _prefix: &str) -> String {
 }
 
 #[cfg(windows)]
-const CLSID_PolicyConfig: GUID = GUID::from_u128(0x870af99c_171d_4f9e_af0d_e63df40c2bc9);
+const CLSID_POLICY_CONFIG: GUID = GUID::from_u128(0x870af99c_171d_4f9e_af0d_e63df40c2bc9);
 
 #[cfg(windows)]
-const IID_IPolicyConfig: GUID = GUID::from_u128(0xf8679f50_850a_41cf_9c72_430f29029470);
+const IID_IPOLICY_CONFIG: GUID = GUID::from_u128(0xf8679f50_850a_41cf_9c72_430f29029470);
 
 #[cfg(windows)]
 #[repr(C)]
@@ -295,9 +295,9 @@ struct PolicyConfig {
 impl PolicyConfig {
     fn new() -> Result<Self> {
         unsafe {
-            let unknown: IUnknown = CoCreateInstance(&CLSID_PolicyConfig, None, CLSCTX_ALL)?;
+            let unknown: IUnknown = CoCreateInstance(&CLSID_POLICY_CONFIG, None, CLSCTX_ALL)?;
             let mut ptr: *mut c_void = std::ptr::null_mut();
-            unknown.query(&IID_IPolicyConfig, &mut ptr).ok()?;
+            unknown.query(&IID_IPOLICY_CONFIG, &mut ptr).ok()?;
             Ok(Self {
                 inner: IPolicyConfig(ptr as *mut IPolicyConfigVtable),
             })
