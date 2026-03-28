@@ -85,29 +85,22 @@ jobs:
             if (!commits || commits.trim() === '') {
               changelogContent = '### 🚀 新功能与改进\n\n- 版本更新';
             } else {
-              const prompt = `请根据以下 Git 提交记录，生成一份简洁的更新日志（中文）。
-            
-版本号: v${version}
-
-提交记录:
-${commits}
-
-要求:
-1. 按功能分类（新功能、改进、修复等）
-2. 每类列出 2-5 条主要更新
-3. 使用 emoji 增强可读性
-4. 保持简洁，不要冗余
-5. 只输出更新日志内容，不要其他说明
-
-格式示例:
-### ✨ 新功能
-- 添加 xxx 功能
-
-### 🔧 改进
-- 优化 xxx 性能
-
-### 🐛 修复
-- 修复 xxx 问题`;
+              const prompt = '请根据以下 Git 提交记录，生成一份简洁的更新日志（中文）。\n\n' +
+                '版本号: v' + version + '\n\n' +
+                '提交记录:\n' + commits + '\n\n' +
+                '要求:\n' +
+                '1. 按功能分类（新功能、改进、修复等）\n' +
+                '2. 每类列出 2-5 条主要更新\n' +
+                '3. 使用 emoji 增强可读性\n' +
+                '4. 保持简洁，不要冗余\n' +
+                '5. 只输出更新日志内容，不要其他说明\n\n' +
+                '格式示例:\n' +
+                '### ✨ 新功能\n' +
+                '- 添加 xxx 功能\n\n' +
+                '### 🔧 改进\n' +
+                '- 优化 xxx 性能\n\n' +
+                '### 🐛 修复\n' +
+                '- 修复 xxx 问题';
 
               try {
                 const response = await fetch('https://models.inference.ai.azure.com/chat/completions', {
