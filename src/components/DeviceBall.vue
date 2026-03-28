@@ -13,10 +13,6 @@ const props = defineProps({
     type: Object,
     required: true
   },
-  index: {
-    type: Number,
-    required: true
-  },
   isActive: {
     type: Boolean,
     default: false
@@ -85,6 +81,8 @@ function handleClick() {
   cursor: pointer;
   z-index: 5;
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .device-ball:hover {

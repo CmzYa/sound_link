@@ -74,6 +74,27 @@ fn set_default_device(device_id: String, state: tauri::State<AppState>) -> Resul
     manager.set_default(&device_id)
 }
 
+#[derive(Serialize)]
+struct InitialData {
+    devices: Vec<Device>,
+    default_device_id: Option<String>,
+    config: AppConfig,
+}
+
+#[tauri::command]
+fn get_initial_data(state: tauri::State<AppState>) -> InitialData {
+    let manager = state.audio_manager.lock().unwrap();
+    let devices = manager.get_devices();
+    let default_device_id = manager.get_default();
+    let config = state.config.lock().unwrap().clone();
+    
+    InitialData {
+        devices,
+        default_device_id,
+        config,
+    }
+}
+
 #[tauri::command]
 fn hide_window(window: WebviewWindow) {
     let _ = window.hide();
@@ -364,6 +385,7 @@ fn main() {
             audio_manager: Mutex::new(AudioDeviceManager::new()),
         })
         .invoke_handler(tauri::generate_handler![
+            get_initial_data,
             get_audio_devices,
             get_default_device,
             set_default_device,

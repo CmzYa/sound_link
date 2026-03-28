@@ -8,13 +8,12 @@ import DeviceBall from "../components/DeviceBall.vue";
 import SettingsView from "./SettingsView.vue";
 
 const BALL_SIZE = 44;
-const CENTER_SIZE = 60;
 const UNSNAP_RADIUS = 75;
 const SNAP_RADIUS = 53;
+const CONTAINER_SIZE = 280;
 
 const allDevices = ref([]);
 const activeDeviceId = ref(null);
-const containerRef = ref(null);
 const configDefaultDeviceId = ref(null);
 const showSettings = ref(false);
 const advancedMaterial = ref(false);
@@ -27,73 +26,60 @@ const devices = computed(() => {
   return allDevices.value.filter(d => d.id !== configDefaultDeviceId.value);
 });
 
-async function refreshDevices() {
-  try {
-    allDevices.value = await invoke("get_audio_devices");
-  } catch (e) {
-    console.error("Failed to load devices:", e);
-    allDevices.value = [];
-  }
-  
-  try {
-    activeDeviceId.value = await invoke("get_default_device");
-  } catch (e) {
-    console.error("Failed to load active device:", e);
-    activeDeviceId.value = null;
-  }
-  
-  try {
-    const config = await invoke("get_config");
-    configDefaultDeviceId.value = config.default_device_id;
-    advancedMaterial.value = config.advanced_material || false;
-  } catch (e) {
-    console.error("Failed to load config:", e);
-  }
-  
-  if (activeDeviceId.value === configDefaultDeviceId.value) {
-    activeDeviceId.value = null;
-  }
-}
-
-function getDevicePosition(device, index) {
-  const container = containerRef.value;
-  if (!container) return { x: 0, y: 0 };
-  
-  const rect = container.getBoundingClientRect();
-  const centerX = rect.width / 2;
-  const centerY = rect.height / 2;
-  const isActive = device.id === activeDeviceId.value;
+const devicePositions = computed(() => {
+  const centerX = CONTAINER_SIZE / 2;
+  const centerY = CONTAINER_SIZE / 2;
   const total = devices.value.length || 1;
   
-  const baseAngle = (index / total) * 2 * Math.PI;
-  const offset = Math.PI / total;
-  const angle = baseAngle + offset;
-  
-  const radius = isActive ? SNAP_RADIUS : UNSNAP_RADIUS;
-  
-  return {
-    x: centerX + Math.cos(angle) * radius - BALL_SIZE / 2,
-    y: centerY + Math.sin(angle) * radius - BALL_SIZE / 2
-  };
+  return devices.value.map((device, index) => {
+    const isActive = device.id === activeDeviceId.value;
+    const baseAngle = (index / total) * 2 * Math.PI;
+    const offset = Math.PI / total;
+    const angle = baseAngle + offset;
+    const radius = isActive ? SNAP_RADIUS : UNSNAP_RADIUS;
+    
+    return {
+      x: centerX + Math.cos(angle) * radius - BALL_SIZE / 2,
+      y: centerY + Math.sin(angle) * radius - BALL_SIZE / 2
+    };
+  });
+});
+
+async function refreshDevices() {
+  try {
+    const data = await invoke("get_initial_data");
+    allDevices.value = data.devices;
+    activeDeviceId.value = data.default_device_id;
+    configDefaultDeviceId.value = data.config.default_device_id;
+    advancedMaterial.value = data.config.advanced_material || false;
+    
+    if (activeDeviceId.value === configDefaultDeviceId.value) {
+      activeDeviceId.value = null;
+    }
+  } catch (e) {
+    console.error("Failed to load data:", e);
+    allDevices.value = [];
+    activeDeviceId.value = null;
+  }
 }
 
 async function handleDeviceClick(device) {
+  const previousDeviceId = activeDeviceId.value;
+  
   if (device.id === activeDeviceId.value) {
     activeDeviceId.value = null;
     if (configDefaultDeviceId.value) {
-      try {
-        await invoke("set_default_device", { deviceId: configDefaultDeviceId.value });
-      } catch (e) {
+      invoke("set_default_device", { deviceId: configDefaultDeviceId.value }).catch(e => {
         console.error("Failed to set default device:", e);
-      }
+        activeDeviceId.value = previousDeviceId;
+      });
     }
   } else {
     activeDeviceId.value = device.id;
-    try {
-      await invoke("set_default_device", { deviceId: device.id });
-    } catch (e) {
+    invoke("set_default_device", { deviceId: device.id }).catch(e => {
       console.error("Failed to set device:", e);
-    }
+      activeDeviceId.value = previousDeviceId;
+    });
   }
 }
 
@@ -120,7 +106,6 @@ function hexToRgba(hex, alpha) {
 
 async function setupThemeListener() {
   let systemAccentColor = null;
-  let currentIsDark = null;
   
   try {
     systemAccentColor = await invoke("get_system_accent_color");
@@ -144,11 +129,6 @@ async function setupThemeListener() {
     } else {
       isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     }
-    
-    if (currentIsDark === isDark) {
-      return;
-    }
-    currentIsDark = isDark;
     
     let themeColor;
     if (systemAccentColor) {
@@ -177,7 +157,7 @@ async function setupThemeListener() {
   
   await updateTheme();
   
-  setInterval(updateTheme, 1000);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", updateTheme);
 }
 
 let unlisten = null;
@@ -222,7 +202,7 @@ onUnmounted(() => {
     />
     
     <template v-else>
-      <div class="container" ref="containerRef">
+      <div class="container">
         <div class="center-ball" :class="{ 'advanced-material': advancedMaterial }">
           <div class="center-inner">
             <Monitor :size="26" class="icon" />
@@ -233,9 +213,8 @@ onUnmounted(() => {
           v-for="(device, index) in devices"
           :key="device.id"
           :device="device"
-          :index="index"
           :is-active="device.id === activeDeviceId"
-          :position="getDevicePosition(device, index)"
+          :position="devicePositions[index]"
           :advanced-material="advancedMaterial"
           @click="handleDeviceClick(device)"
         />
@@ -290,9 +269,9 @@ onUnmounted(() => {
   width: 60px;
   height: 60px;
   z-index: 10;
+  will-change: transform;
 }
 
-/* 深色模式 - 中心球 */
 .center-inner {
   width: 100%;
   height: 100%;
@@ -309,6 +288,8 @@ onUnmounted(() => {
     0 0 25px var(--theme-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
   animation: center-glow 3s ease-in-out infinite;
+  will-change: box-shadow;
+  transform: translateZ(0);
 }
 
 /* 深色模式 - 高级材质中心球 */
