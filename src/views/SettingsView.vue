@@ -100,7 +100,7 @@ onMounted(async () => {
           <div class="dropdown-value">
             <template v-if="selectedDevice">
               <component :is="getDeviceIcon(selectedDevice.type)" :size="14" class="dropdown-icon" />
-              <span>{{ selectedDevice.name || selectedDevice.id || '未知设备' }}</span>
+              <span>{{ selectedDevice.name }}</span>
             </template>
             <span v-else class="placeholder">未选择</span>
           </div>
@@ -126,7 +126,7 @@ onMounted(async () => {
           >
             <div class="item-content">
               <component :is="getDeviceIcon(device.type)" :size="14" class="dropdown-icon" />
-              <span>{{ device.name || device.id || '未知设备' }}</span>
+              <span>{{ device.name }}</span>
             </div>
             <div v-if="selectedDeviceId === device.id" class="check">✓</div>
           </div>

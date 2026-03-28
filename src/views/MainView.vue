@@ -118,8 +118,6 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-let themeCheckInterval = null;
-
 async function setupThemeListener() {
   let systemAccentColor = null;
   let currentIsDark = null;
@@ -179,10 +177,7 @@ async function setupThemeListener() {
   
   await updateTheme();
   
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  mediaQuery.addEventListener("change", updateTheme);
-  
-  themeCheckInterval = setInterval(updateTheme, 5000);
+  setInterval(updateTheme, 1000);
 }
 
 let unlisten = null;
@@ -211,7 +206,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (unlisten) unlisten();
   if (unlistenSettings) unlistenSettings();
-  if (themeCheckInterval) clearInterval(themeCheckInterval);
 });
 </script>
 
@@ -247,7 +241,7 @@ onUnmounted(() => {
         />
         
         <div v-if="devices.length === 0" class="no-device-hint">
-          未检测到音频设备
+          未检测到音频设备<br>请检查 AudioDeviceCmdlets 模块
         </div>
       </div>
     </template>
@@ -277,6 +271,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  backdrop-filter: blur(10px) saturate(180%);
+  -webkit-backdrop-filter: blur(10px) saturate(180%);
   border: 1px solid var(--glass-border);
 }
 
@@ -294,7 +290,6 @@ onUnmounted(() => {
   width: 60px;
   height: 60px;
   z-index: 10;
-  will-change: transform;
 }
 
 /* 深色模式 - 中心球 */
@@ -313,7 +308,7 @@ onUnmounted(() => {
     0 4px 20px rgba(0, 0, 0, 0.4),
     0 0 25px var(--theme-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  will-change: box-shadow;
+  animation: center-glow 3s ease-in-out infinite;
 }
 
 /* 深色模式 - 高级材质中心球 */
@@ -331,11 +326,19 @@ onUnmounted(() => {
   height: 100%;
   background: var(--theme-glow);
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 0.5;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 1;
   z-index: -1;
-  filter: blur(12px);
-  pointer-events: none;
+  filter: blur(10px);
+}
+
+.center-ball.advanced-material::before {
+  animation: light-wave 3s ease-out infinite;
+}
+
+.center-ball.advanced-material::after {
+  animation: light-wave 3s ease-out 1s infinite;
+  background: color-mix(in srgb, var(--theme-color) 40%, transparent);
 }
 
 .center-ball.advanced-material .center-inner {
@@ -344,15 +347,59 @@ onUnmounted(() => {
     color-mix(in srgb, var(--theme-color) 40%, rgba(255, 255, 255, 0.2))
   );
   border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
   box-shadow: 
     0 8px 35px rgba(0, 0, 0, 0.3),
     inset 0 2px 0 rgba(255, 255, 255, 0.35),
     0 0 30px var(--theme-glow);
+  animation: center-glow-advanced 3s ease-in-out infinite;
 }
 
 .center-ball .icon {
   color: white;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes center-glow {
+  0%, 100% {
+    box-shadow: 
+      0 4px 20px rgba(0, 0, 0, 0.4),
+      0 0 25px var(--theme-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+  50% {
+    box-shadow: 
+      0 6px 28px rgba(0, 0, 0, 0.5),
+      0 0 40px var(--theme-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes center-glow-advanced {
+  0%, 100% {
+    box-shadow: 
+      0 8px 35px rgba(0, 0, 0, 0.3),
+      inset 0 2px 0 rgba(255, 255, 255, 0.35),
+      0 0 30px var(--theme-glow);
+  }
+  50% {
+    box-shadow: 
+      0 10px 45px rgba(0, 0, 0, 0.4),
+      inset 0 2px 0 rgba(255, 255, 255, 0.4),
+      0 0 50px var(--theme-glow);
+  }
+}
+
+@keyframes light-wave {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3.5);
+    opacity: 0;
+  }
 }
 
 .no-device-hint {
