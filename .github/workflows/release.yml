@@ -66,6 +66,7 @@ jobs:
             const fs = require('fs');
             const { execSync } = require('child_process');
             const version = '${{ steps.version.outputs.version }}';
+            const tempDir = '${{ runner.temp }}';
             
             let commits = '';
             try {
@@ -113,14 +114,15 @@ jobs:
               '**仓库**: [https://github.com/CmzYa/sound_link](https://github.com/CmzYa/sound_link)  \n' +
               '**许可证**: GPL-3.0 License';
             
-            fs.writeFileSync('/tmp/changelog.md', fullBody);
-            console.log('更新日志已生成');
+            const changelogPath = require('path').join(tempDir, 'changelog.md');
+            fs.writeFileSync(changelogPath, fullBody);
+            console.log('更新日志已生成:', changelogPath);
 
       - name: 上传更新日志
         uses: actions/upload-artifact@v4
         with:
           name: changelog
-          path: /tmp/changelog.md
+          path: ${{ runner.temp }}/changelog.md
           retention-days: 1
 
       - name: 同步版本号到文件
@@ -172,7 +174,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: changelog
-          path: /tmp
+          path: ${{ runner.temp }}
 
       - name: 显示发布信息
         run: |
@@ -180,7 +182,7 @@ jobs:
           echo "✅ 发布版本: ${{ needs.prepare-version.outputs.version }}"
           echo ""
           echo "📝 更新日志:"
-          cat /tmp/changelog.md
+          cat ${{ runner.temp }}/changelog.md
 
   build-windows:
     name: 构建 Windows 版本
@@ -205,7 +207,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: changelog
-          path: /tmp
+          path: ${{ runner.temp }}
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
@@ -230,7 +232,7 @@ jobs:
         with:
           tagName: ${{ needs.validate-tag.outputs.tag }}
           releaseName: "Sound Link v${{ needs.validate-tag.outputs.version }}"
-          releaseBodyFile: /tmp/changelog.md
+          releaseBodyFile: ${{ runner.temp }}/changelog.md
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
