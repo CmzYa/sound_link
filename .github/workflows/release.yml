@@ -130,29 +130,23 @@ jobs:
               }
             }
             
-            const fullBody = `## Sound Link v${version}
-
-${changelogContent}
-
----
-
-### 📥 下载说明
-| 平台 | 架构 | 文件格式 |
-|------|------|----------|
-| Windows | x64 | \`.msi\` / \`.exe\` |
-| Windows | ARM64 | \`.msi\` / \`.exe\` |
-
-### 📦 安装依赖
-使用前需安装 [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets) PowerShell 模块：
-\`\`\`powershell
-Install-Module -Name AudioDeviceCmdlets -Force
-\`\`\`
-
----
-
-**作者**: [@CmzYa](https://github.com/CmzYa)  
-**仓库**: [https://github.com/CmzYa/sound_link](https://github.com/CmzYa/sound_link)  
-**许可证**: MIT License`;
+            const fullBody = '## Sound Link v' + version + '\n\n' +
+              changelogContent + '\n\n' +
+              '---\n\n' +
+              '### 📥 下载说明\n' +
+              '| 平台 | 架构 | 文件格式 |\n' +
+              '|------|------|----------|\n' +
+              '| Windows | x64 | `.msi` / `.exe` |\n' +
+              '| Windows | ARM64 | `.msi` / `.exe` |\n\n' +
+              '### 📦 安装依赖\n' +
+              '使用前需安装 [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets) PowerShell 模块：\n' +
+              '```powershell\n' +
+              'Install-Module -Name AudioDeviceCmdlets -Force\n' +
+              '```\n\n' +
+              '---\n\n' +
+              '**作者**: [@CmzYa](https://github.com/CmzYa)  \n' +
+              '**仓库**: [https://github.com/CmzYa/sound_link](https://github.com/CmzYa/sound_link)  \n' +
+              '**许可证**: GPL-3.0 License';
             
             fs.writeFileSync('/tmp/changelog.md', fullBody);
         env:
