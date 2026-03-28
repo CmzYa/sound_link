@@ -58,91 +58,41 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "目标版本: $VERSION"
 
-      - name: 获取提交记录
-        id: commits
-        run: |
-          set -euo pipefail
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            echo "上次发布: $LAST_TAG"
-            git log $LAST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges > /tmp/commits.txt
-          else
-            echo "首次发布，获取最近20条提交"
-            git log -20 --pretty=format:"- %s (%h)" --no-merges > /tmp/commits.txt
-          fi
-          echo "提交记录已保存到 /tmp/commits.txt"
-
       - name: 生成更新日志
         id: changelog
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
+            const { execSync } = require('child_process');
+            const version = '${{ steps.version.outputs.version }}';
+            
             let commits = '';
             try {
-              commits = fs.readFileSync('/tmp/commits.txt', 'utf8');
+              const lastTag = execSync('git describe --tags --abbrev=0 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+              let cmd;
+              if (lastTag) {
+                console.log('上次发布:', lastTag);
+                cmd = `git log ${lastTag}..HEAD --pretty=format:"- %s (%h)" --no-merges`;
+              } else {
+                console.log('首次发布，获取最近20条提交');
+                cmd = 'git log -20 --pretty=format:"- %s (%h)" --no-merges';
+              }
+              commits = execSync(cmd, { encoding: 'utf8' }).trim();
             } catch (e) {
               commits = '';
             }
-            const version = '${{ steps.version.outputs.version }}';
             
             let changelogContent = '';
-            
             if (!commits || commits.trim() === '') {
-              changelogContent = '### 🚀 新功能与改进\n\n- 版本更新';
+              changelogContent = '### 🚀 更新\n\n- 版本更新';
             } else {
-              const prompt = '请根据以下 Git 提交记录，生成一份简洁的更新日志（中文）。\n\n' +
-                '版本号: v' + version + '\n\n' +
-                '提交记录:\n' + commits + '\n\n' +
-                '要求:\n' +
-                '1. 按功能分类（新功能、改进、修复等）\n' +
-                '2. 每类列出 2-5 条主要更新\n' +
-                '3. 使用 emoji 增强可读性\n' +
-                '4. 保持简洁，不要冗余\n' +
-                '5. 只输出更新日志内容，不要其他说明\n\n' +
-                '格式示例:\n' +
-                '### ✨ 新功能\n' +
-                '- 添加 xxx 功能\n\n' +
-                '### 🔧 改进\n' +
-                '- 优化 xxx 性能\n\n' +
-                '### 🐛 修复\n' +
-                '- 修复 xxx 问题';
-
-              let aiSuccess = false;
-              try {
-                const response = await fetch('http://ai.little100.cn/v1/chat/completions', {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': 'Bearer ' + process.env.AI_API_KEY,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    model: 'gpt-5.3-codex-high',
-                    messages: [{ role: 'user', content: prompt }],
-                    max_tokens: 1000,
-                    temperature: 0.7
-                  })
-                });
-                
-                if (response.ok) {
-                  const data = await response.json();
-                  const aiContent = data.choices[0]?.message?.content;
-                  if (aiContent && aiContent.trim()) {
-                    changelogContent = aiContent;
-                    aiSuccess = true;
-                    console.log('更新日志已生成');
-                  }
-                } else {
-                  console.log('API 响应错误:', response.status);
-                }
-              } catch (error) {
-                console.log('AI 生成失败:', error.message);
-              }
-              
-              if (!aiSuccess) {
-                console.log('使用提交记录作为更新日志');
-                changelogContent = '### 📝 提交记录\n\n' + commits;
-              }
+              const lines = commits.split('\n');
+              const processedLines = lines.map(line => {
+                return line.replace(/^- (feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)(\([^)]+\))?:\s*/i, '- ')
+                           .replace(/^- ([a-z]+):\s*/i, '- ');
+              });
+              changelogContent = '### 📝 更新内容\n\n' + processedLines.join('\n');
             }
             
             const fullBody = '## Sound Link v' + version + '\n\n' +
@@ -164,9 +114,7 @@ jobs:
               '**许可证**: GPL-3.0 License';
             
             fs.writeFileSync('/tmp/changelog.md', fullBody);
-        env:
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            console.log('更新日志已生成');
 
       - name: 上传更新日志
         uses: actions/upload-artifact@v4
@@ -184,15 +132,12 @@ jobs:
           if [ "$VERSION" != "$CURRENT" ]; then
             echo "更新版本号: $CURRENT -> $VERSION"
             
-            # 更新 package.json
             jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
             mv package.json.tmp package.json
             
-            # 更新 tauri.conf.json
             jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tauri.conf.json.tmp
             mv tauri.conf.json.tmp src-tauri/tauri.conf.json
             
-            # 更新 Cargo.toml
             sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
             
             echo "✅ 版本号已同步到所有文件"
