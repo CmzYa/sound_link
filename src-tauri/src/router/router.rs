@@ -455,8 +455,13 @@ impl AudioRouter {
                 }
             }
 
-            // 获取源设备(VB-Cable)的系统音量
-            let system_volume: f32 = source_volume.GetMasterVolumeLevelScalar().unwrap_or(1.0);
+            // 获取源设备(VB-Cable)的系统音量和静音状态
+            let is_muted = source_volume.GetMute().unwrap_or(windows::Win32::Foundation::BOOL(0)).as_bool();
+            let system_volume: f32 = if is_muted {
+                0.0
+            } else {
+                source_volume.GetMasterVolumeLevelScalar().unwrap_or(1.0)
+            };
 
             let packet_size = capture
                 .GetNextPacketSize()
