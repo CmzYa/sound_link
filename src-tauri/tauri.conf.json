@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Sound Link",
-  "version": "1.0.1",
+  "version": "0.1.2",
   "identifier": "com.soundlink.app",
   "build": {
     "frontendDist": "../output/dist",
