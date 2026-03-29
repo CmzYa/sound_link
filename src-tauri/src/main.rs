@@ -355,58 +355,21 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
-/// 动态生成托盘图标（跑道形状）
+/// 从嵌入的 PNG 文件加载托盘图标
 fn create_tray_icon(is_dark: bool) -> Image<'static> {
-    const SIZE: u32 = 32;
-    let mut pixels: Vec<u8> = Vec::with_capacity((SIZE * SIZE * 4) as usize);
-    
-    // 根据主题选择颜色：深色主题用白色图标，浅色主题用黑色图标
-    let color = if is_dark { [255u8, 255u8, 255u8, 230u8] } else { [30u8, 30u8, 30u8, 230u8] };
-    let transparent = [0u8, 0u8, 0u8, 0u8];
-    
-    let center_x = SIZE as f32 / 2.0;
-    let center_y = SIZE as f32 / 2.0;
-    let outer_radius = 10.0;  // 半径
-    let track_width = 30.0;  // 跑道宽度
-    let line_width = 3.0;    // 线条粗细
-    
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let px = x as f32;
-            let py = y as f32;
-            
-            // 计算到中心线的距离
-            let half_width = track_width / 2.0;
-            let left_center_x = center_x - half_width + outer_radius;
-            let right_center_x = center_x + half_width - outer_radius;
-            
-            // 判断是否在跑道范围内
-            let in_track = if px < left_center_x {
-                // 左侧半圆
-                let dx = px - left_center_x;
-                let dy = py - center_y;
-                let dist = (dx * dx + dy * dy).sqrt();
-                dist <= outer_radius && dist >= outer_radius - line_width
-            } else if px > right_center_x {
-                // 右侧半圆
-                let dx = px - right_center_x;
-                let dy = py - center_y;
-                let dist = (dx * dx + dy * dy).sqrt();
-                dist <= outer_radius && dist >= outer_radius - line_width
-            } else {
-                // 中间直线部分
-                let dist_to_center = (py - center_y).abs();
-                let in_top_line = dist_to_center >= outer_radius - line_width && dist_to_center <= outer_radius;
-                let in_bottom_line = dist_to_center >= outer_radius - line_width && dist_to_center <= outer_radius;
-                in_top_line || in_bottom_line
-            };
-            
-            let pixel = if in_track { color } else { transparent };
-            pixels.extend_from_slice(&pixel);
-        }
+    // 深色主题用白色图标，浅色主题用黑色图标
+    if is_dark {
+        load_icon_from_bytes(include_bytes!("../icons/tray-white.png"))
+    } else {
+        load_icon_from_bytes(include_bytes!("../icons/tray-black.png"))
     }
-    
-    Image::new_owned(pixels, SIZE, SIZE)
+}
+
+fn load_icon_from_bytes(bytes: &[u8]) -> Image<'static> {
+    let img = image::load_from_memory(bytes).expect("Failed to decode tray icon");
+    let rgba = img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    Image::new_owned(rgba.into_raw(), width, height)
 }
 
 fn main() {
