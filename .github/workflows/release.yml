@@ -25,6 +25,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
       changelog: ${{ steps.changelog.outputs.content }}
+      commit_sha: ${{ steps.commit.outputs.sha }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -119,6 +120,7 @@ jobs:
           fi
 
       - name: 提交版本更新
+        id: commit
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
@@ -132,6 +134,7 @@ jobs:
             git push
             echo "版本更新已提交"
           fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build-windows:
     name: 构建 Windows 版本
@@ -151,6 +154,9 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-version.outputs.commit_sha }}
+          fetch-depth: 0
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
