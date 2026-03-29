@@ -404,6 +404,8 @@ impl AudioRouter {
         let mut render_clients: HashMap<String, IAudioClient> = HashMap::new();
         let mut render_outputs: HashMap<String, IAudioRenderClient> = HashMap::new();
         let mut delay_buffers: HashMap<String, DelayBuffer> = HashMap::new();
+        // 目标设备的系统音量控制接口（用于音量同步）
+        let mut target_volume_controls: HashMap<String, IAudioEndpointVolume> = HashMap::new();
 
         for device_config in &config.devices {
             if !target_ids.contains(&device_config.id) || !device_config.enabled {
@@ -412,6 +414,11 @@ impl AudioRouter {
 
             let id = windows::core::HSTRING::from(device_config.id.as_str());
             if let Ok(device) = enumerator.GetDevice(&id) {
+                // 获取目标设备的系统音量控制接口
+                if let Ok(endpoint_volume) = device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
+                    target_volume_controls.insert(device_config.id.clone(), endpoint_volume);
+                }
+
                 if let Ok(audio_client) = device.Activate::<IAudioClient>(CLSCTX_ALL, None) {
                     // 使用源设备格式初始化，确保音频质量一致
                     if audio_client
@@ -463,6 +470,21 @@ impl AudioRouter {
                 source_volume.GetMasterVolumeLevelScalar().unwrap_or(1.0)
             };
 
+            // 音量同步：将虚拟设备音量 * 软件设置的百分比同步到其他设备
+            for (device_id, endpoint_volume) in target_volume_controls.iter() {
+                let app_volume = shared_volumes
+                    .lock()
+                    .ok()
+                    .and_then(|v| v.get(device_id).copied())
+                    .unwrap_or(1.0);
+                
+                // 目标设备系统音量 = 虚拟设备音量 * 软件音量百分比
+                let target_system_volume = system_volume * app_volume;
+                let _ = endpoint_volume.SetMasterVolumeLevelScalar(target_system_volume, std::ptr::null());
+                // 同步静音状态
+                let _ = endpoint_volume.SetMute(is_muted, std::ptr::null());
+            }
+
             let packet_size = capture
                 .GetNextPacketSize()
                 .map_err(|e| format!("GetNextPacketSize failed: {:?}", e))?;
@@ -505,7 +527,7 @@ impl AudioRouter {
 
                     // 总音量 = 系统音量 * 应用层音量 * 增益
                     // 增益 7.0 补偿 VB-Cable 捕获的音量损失
-                    let total_volume = system_volume * app_volume * 7.3;
+                    let total_volume = system_volume * app_volume;
 
                     if let Ok(out_ptr) = render_client.GetBuffer(num_frames) {
                         if !out_ptr.is_null() {
