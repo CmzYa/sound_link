@@ -1,8 +1,35 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { getVersion } from "@tauri-apps/api/app";
-import { Speaker, Headphones, Monitor, Bluetooth, Volume2, ArrowLeft, ChevronDown, ChevronUp } from "lucide-vue-next";
+import { open } from "@tauri-apps/plugin-shell";
+import { Speaker, Headphones, Monitor, Bluetooth, Volume2, ArrowLeft, ChevronDown, ChevronUp, RefreshCw } from "lucide-vue-next";
+
+const props = defineProps({
+  appVersion: {
+    type: String,
+    default: ""
+  },
+  initialDevices: {
+    type: Array,
+    default: () => []
+  },
+  initialDefaultDeviceId: {
+    type: String,
+    default: null
+  },
+  initialAdvancedMaterial: {
+    type: Boolean,
+    default: false
+  },
+  hasUpdate: {
+    type: Boolean,
+    default: false
+  },
+  latestVersion: {
+    type: String,
+    default: ""
+  }
+});
 
 const emit = defineEmits(["close", "config-changed"]);
 
@@ -11,7 +38,12 @@ const selectedDeviceId = ref(null);
 const savedDeviceId = ref(null);
 const isDropdownOpen = ref(false);
 const advancedMaterial = ref(false);
-const appVersion = ref("");
+const isCheckingUpdate = ref(false);
+const updateInfo = ref(null);
+const isInitialized = ref(false);
+
+const GITHUB_REPO = "CmzYa/sound_link";
+const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
 const selectedDevice = computed(() => {
   return devices.value.find(d => d.id === selectedDeviceId.value);
@@ -69,23 +101,106 @@ function clearSelection() {
 }
 
 watch(selectedDeviceId, () => {
+  if (!isInitialized.value) return;
   saveConfig();
   emit("config-changed");
 });
 
 watch(advancedMaterial, () => {
+  if (!isInitialized.value) return;
   saveConfig();
   emit("config-changed");
 });
 
-onMounted(async () => {
-  await loadDevices();
-  await loadConfig();
-  try {
-    appVersion.value = await getVersion();
-  } catch (e) {
-    console.error("Failed to get version:", e);
+function compareVersions(current, latest) {
+  const currentParts = current.split('.').map(Number);
+  const latestParts = latest.split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
+    const currentPart = currentParts[i] || 0;
+    const latestPart = latestParts[i] || 0;
+    
+    if (latestPart > currentPart) return 1;
+    if (latestPart < currentPart) return -1;
   }
+  return 0;
+}
+
+async function checkForUpdate() {
+  if (isCheckingUpdate.value) return;
+  
+  isCheckingUpdate.value = true;
+  updateInfo.value = null;
+  
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+    if (!response.ok) throw new Error("Failed to fetch release info");
+    
+    const release = await response.json();
+    const latestVersion = release.tag_name.replace(/^v/, '');
+    const currentVersion = props.appVersion || "0.0.0";
+    
+    console.log("当前版本:", currentVersion, "最新版本:", latestVersion);
+    
+    const comparison = compareVersions(currentVersion, latestVersion);
+    console.log("版本比较结果:", comparison);
+    
+    if (comparison > 0) {
+      updateInfo.value = {
+        hasUpdate: true,
+        latestVersion,
+        currentVersion,
+        releaseUrl: release.html_url
+      };
+    } else {
+      updateInfo.value = {
+        hasUpdate: false,
+        latestVersion,
+        currentVersion
+      };
+    }
+  } catch (e) {
+    console.error("Failed to check for updates:", e);
+    updateInfo.value = {
+      hasUpdate: false,
+      error: true
+    };
+  } finally {
+    isCheckingUpdate.value = false;
+  }
+}
+
+async function openReleasePage() {
+  try {
+    await open(GITHUB_RELEASES_URL);
+  } catch (e) {
+    console.error("Failed to open release page:", e);
+  }
+}
+
+onMounted(async () => {
+  // 使用 MainView 传入的初始数据，避免重复加载和视觉跳动
+  if (props.initialDevices && props.initialDevices.length > 0) {
+    devices.value = props.initialDevices;
+  } else {
+    await loadDevices();
+  }
+  
+  savedDeviceId.value = props.initialDefaultDeviceId;
+  selectedDeviceId.value = props.initialDefaultDeviceId;
+  advancedMaterial.value = props.initialAdvancedMaterial;
+  
+  // 如果 MainView 已检测到更新，直接显示
+  if (props.hasUpdate && props.latestVersion) {
+    updateInfo.value = {
+      hasUpdate: true,
+      latestVersion: props.latestVersion,
+      currentVersion: props.appVersion
+    };
+  }
+  
+  // 初始化完成后再启用 watch 监听
+  isInitialized.value = true;
 });
 </script>
 
@@ -159,7 +274,7 @@ onMounted(async () => {
     
     <div class="about-section">
       <div class="about-title">Sound Link</div>
-      <div class="about-version">v{{ appVersion }}</div>
+      <div class="about-version">v{{ props.appVersion || '...' }}</div>
       <div class="about-desc">快速切换音频输出设备</div>
       <div class="about-links">
         <a href="https://github.com/CmzYa/sound_link" class="about-link" target="_blank">
@@ -168,6 +283,21 @@ onMounted(async () => {
           </svg>
           GitHub
         </a>
+        <button 
+          class="about-link update-btn" 
+          :class="{ 'has-update': updateInfo?.hasUpdate }"
+          @click="updateInfo?.hasUpdate ? openReleasePage() : checkForUpdate()"
+          :disabled="isCheckingUpdate"
+        >
+          <RefreshCw :size="14" :class="{ 'spinning': isCheckingUpdate }" />
+          <span v-if="isCheckingUpdate">检查中...</span>
+          <span v-else-if="updateInfo?.hasUpdate">有新版本</span>
+          <span v-else-if="updateInfo && !updateInfo.error">已是最新</span>
+          <span v-else>检查更新</span>
+        </button>
+      </div>
+      <div v-if="updateInfo?.hasUpdate" class="update-info">
+        发现新版本 v{{ updateInfo.latestVersion }}，点击按钮前往下载
       </div>
       <div class="about-license">GPL-3.0 License</div>
     </div>
@@ -423,6 +553,43 @@ h2 {
 .github-icon {
   width: 14px;
   height: 14px;
+}
+
+.update-btn {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+.update-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.update-btn.has-update {
+  color: #22c55e;
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.update-btn.has-update:hover {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.update-info {
+  font-size: 10px;
+  color: #22c55e;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .about-license {

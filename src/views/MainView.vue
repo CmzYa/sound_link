@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, shallowRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
 import { Monitor, Settings } from "lucide-vue-next";
 import DeviceBall from "../components/DeviceBall.vue";
 import SettingsView from "./SettingsView.vue";
@@ -20,6 +21,11 @@ const showSettings = ref(false);
 const advancedMaterial = ref(false);
 const isReady = ref(false);
 const switchingDeviceId = ref(null);
+const appVersion = ref("");
+const hasUpdate = ref(false);
+const latestVersion = ref("");
+
+const GITHUB_REPO = "CmzYa/sound_link";
 
 function handleSettingsClose() {
   showSettings.value = false;
@@ -194,16 +200,59 @@ async function setupThemeListener() {
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", updateTheme);
 }
 
+async function loadAppVersion() {
+  try {
+    appVersion.value = await getVersion();
+  } catch (e) {
+    console.error("Failed to get version:", e);
+  }
+}
+
+function compareVersions(current, latest) {
+  const currentParts = current.split('.').map(Number);
+  const latestParts = latest.split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
+    const currentPart = currentParts[i] || 0;
+    const latestPart = latestParts[i] || 0;
+    
+    if (latestPart > currentPart) return 1;
+    if (latestPart < currentPart) return -1;
+  }
+  return 0;
+}
+
+async function checkForUpdate() {
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+    if (!response.ok) return;
+    
+    const release = await response.json();
+    const latest = release.tag_name.replace(/^v/, '');
+    const currentVersion = appVersion.value || "0.0.0";
+    
+    if (compareVersions(currentVersion, latest) > 0) {
+      hasUpdate.value = true;
+      latestVersion.value = latest;
+    }
+  } catch (e) {
+    console.error("Failed to check for updates:", e);
+  }
+}
+
 let unlisten = null;
 let unlistenSettings = null;
 
 onMounted(async () => {
-  const [, themeResult] = await Promise.allSettled([
+  const [, ,] = await Promise.allSettled([
     loadCachedOrRefresh(),
-    setupThemeListener()
+    setupThemeListener(),
+    loadAppVersion()
   ]);
   
   isReady.value = true;
+  
+  checkForUpdate();
   
   unlisten = await listen("refresh-devices", async () => {
     await refreshDevices();
@@ -229,12 +278,18 @@ onUnmounted(() => {
 
 <template>
   <div id="app" :class="{ 'advanced-material': advancedMaterial, 'is-ready': isReady }" @click="handleAppClick">
-    <button v-if="!showSettings" class="settings-btn" @click.stop="showSettings = !showSettings">
+    <button v-if="!showSettings" class="settings-btn" :class="{ 'has-update': hasUpdate }" @click.stop="showSettings = !showSettings">
       <Settings :size="16" />
     </button>
     
     <SettingsView 
       v-if="showSettings" 
+      :app-version="appVersion"
+      :initial-devices="allDevices"
+      :initial-default-device-id="configDefaultDeviceId"
+      :initial-advanced-material="advancedMaterial"
+      :has-update="hasUpdate"
+      :latest-version="latestVersion"
       @close="handleSettingsClose" 
       @config-changed="refreshDevices" 
     />
@@ -309,6 +364,12 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--glass-bg) 120%, var(--theme-color));
   color: var(--text-color);
   border-color: var(--theme-color);
+}
+
+.settings-btn.has-update {
+  color: #22c55e;
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
 }
 
 .center-ball {
