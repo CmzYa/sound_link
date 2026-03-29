@@ -111,7 +111,9 @@ jobs:
             
             sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
             
-            echo "✅ 版本号已同步到所有文件"
+            cd src-tauri && cargo generate-lockfile
+            
+            echo "版本号已同步到所有文件"
           else
             echo "版本号未变化，跳过同步"
           fi
@@ -125,10 +127,10 @@ jobs:
           if [ "$VERSION" != "$CURRENT" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+            git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
             git commit -m "chore: bump version to $VERSION"
             git push
-            echo "✅ 版本更新已提交"
+            echo "版本更新已提交"
           fi
 
   build-windows:
