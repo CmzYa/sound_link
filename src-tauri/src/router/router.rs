@@ -92,6 +92,12 @@ impl AudioRouter {
         }
     }
 
+    /// 重新检测虚拟设备
+    pub fn refresh_virtual_device(&mut self) -> VirtualDeviceStatus {
+        self.vb_cable_id = Self::find_vb_cable_device();
+        self.get_virtual_device_status()
+    }
+
     /// 获取设备名称（通过 PowerShell）
     fn get_device_name_by_id(device_id: &str) -> Option<String> {
         let mut cmd = Command::new("powershell");

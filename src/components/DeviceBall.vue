@@ -284,6 +284,8 @@ function handleClick() {
     color-mix(in srgb, var(--theme-color) 65%, white)
   );
   border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.12),
     inset 0 2px 0 rgba(255, 255, 255, 0.6),
@@ -309,34 +311,74 @@ function handleClick() {
 /* 路由模式样式 */
 .device-ball.router-mode.snapped {
   background: linear-gradient(145deg, 
-    #8b5cf6, 
-    color-mix(in srgb, #8b5cf6 65%, black)
+    var(--router-color), 
+    color-mix(in srgb, var(--router-color) 65%, black)
   );
   box-shadow: 
     0 4px 16px rgba(0, 0, 0, 0.4),
-    0 0 12px rgba(139, 92, 246, 0.4),
-    0 0 24px rgba(139, 92, 246, 0.3),
+    0 0 12px var(--router-glow),
+    0 0 24px var(--router-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .device-ball.router-mode.unsnapped:hover {
   background: linear-gradient(145deg, 
-    rgba(139, 92, 246, 0.3), 
-    rgba(139, 92, 246, 0.15)
+    color-mix(in srgb, var(--router-color) 30%, transparent), 
+    color-mix(in srgb, var(--router-color) 15%, transparent)
   );
-  border-color: rgba(139, 92, 246, 0.4);
+  border-color: color-mix(in srgb, var(--router-color) 40%, transparent);
 }
 
 /* 浅色模式 - 路由模式 */
 [data-theme="light"] .device-ball.router-mode.snapped {
   background: linear-gradient(145deg, 
-    #8b5cf6, 
-    color-mix(in srgb, #8b5cf6 75%, white)
+    var(--router-color), 
+    color-mix(in srgb, var(--router-color) 75%, white)
   );
   box-shadow: 
     0 4px 16px rgba(0, 0, 0, 0.15),
-    0 0 12px rgba(139, 92, 246, 0.4),
-    0 0 24px rgba(139, 92, 246, 0.3),
+    0 0 12px var(--router-glow),
+    0 0 24px var(--router-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* 深色模式 - 高级材质路由模式 */
+.device-ball.router-mode.snapped.advanced-material {
+  background: linear-gradient(145deg, 
+    color-mix(in srgb, var(--router-color) 65%, white), 
+    color-mix(in srgb, var(--router-color) 40%, rgba(255, 255, 255, 0.2))
+  );
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 25px var(--router-glow);
+}
+
+/* 浅色模式 - 高级材质路由模式 */
+[data-theme="light"] .device-ball.router-mode.snapped.advanced-material {
+  background: linear-gradient(145deg, 
+    color-mix(in srgb, var(--router-color) 85%, white), 
+    color-mix(in srgb, var(--router-color) 65%, white)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    inset 0 2px 0 rgba(255, 255, 255, 0.6),
+    0 0 25px var(--router-glow);
+}
+
+/* 浅色模式 - 路由模式未激活 hover */
+[data-theme="light"] .device-ball.router-mode.unsnapped:hover {
+  background: linear-gradient(145deg, 
+    color-mix(in srgb, var(--router-color) 25%, white), 
+    color-mix(in srgb, var(--router-color) 12%, white)
+  );
+  border-color: color-mix(in srgb, var(--router-color) 35%, transparent);
+}
+
+/* 浅色模式 - 路由模式未激活图标 */
+[data-theme="light"] .device-ball.router-mode.unsnapped .icon {
+  color: var(--router-color);
 }
 </style>

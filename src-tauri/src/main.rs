@@ -362,6 +362,12 @@ fn get_virtual_device_status(state: tauri::State<AppState>) -> VirtualDeviceStat
 }
 
 #[tauri::command]
+fn refresh_virtual_device(state: tauri::State<AppState>) -> VirtualDeviceStatus {
+    let mut router = state.router.lock().unwrap();
+    router.refresh_virtual_device()
+}
+
+#[tauri::command]
 fn get_saved_router_config() -> SavedRouterConfig {
     load_saved_router_config()
 }
@@ -597,6 +603,7 @@ fn main() {
             update_router_config,
             get_router_config,
             get_virtual_device_status,
+            refresh_virtual_device,
             get_saved_router_config,
             save_router_config,
             get_auto_start_status,

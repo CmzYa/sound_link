@@ -250,8 +250,8 @@ function openDownloadPage() {
 async function refreshVirtualDevice() {
   isRefreshing.value = true;
   try {
-    const data = await invoke("get_initial_data");
-    applyData(data);
+    const status = await invoke("refresh_virtual_device");
+    virtualDeviceStatus.value = status;
     if (virtualDeviceStatus.value.is_installed) {
       showInstallDialog.value = false;
     }
@@ -376,6 +376,14 @@ async function setupThemeListener() {
     
     document.documentElement.style.setProperty("--theme-color", themeColor);
     document.documentElement.style.setProperty("--theme-glow", hexToRgba(themeColor, 0.4));
+    
+    // 路由模式颜色变量
+    document.documentElement.style.setProperty("--router-color", "#8b5cf6");
+    document.documentElement.style.setProperty("--router-glow", "rgba(139, 92, 246, 0.4)");
+    
+    // 广播激活颜色变量
+    document.documentElement.style.setProperty("--active-color", "#22c55e");
+    document.documentElement.style.setProperty("--active-glow", "rgba(34, 197, 94, 0.4)");
     
     if (isDark) {
       document.documentElement.style.setProperty("--glass-bg", "rgba(28, 28, 32, 0.75)");
@@ -720,16 +728,19 @@ onUnmounted(() => {
   filter: blur(10px);
 }
 
+/* 深色模式 - 高级材质中心球 */
 .center-ball.advanced-material .center-inner {
-  background: linear-gradient(145deg, 
-    color-mix(in srgb, var(--theme-color) 65%, white), 
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--theme-color) 65%, white),
     color-mix(in srgb, var(--theme-color) 40%, rgba(255, 255, 255, 0.2))
-  );
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 
-    0 8px 35px rgba(0, 0, 0, 0.3),
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
     inset 0 2px 0 rgba(255, 255, 255, 0.35),
-    0 0 30px var(--theme-glow);
+    0 0 25px var(--theme-glow) !important;
 }
 
 .center-ball .icon {
@@ -765,15 +776,17 @@ onUnmounted(() => {
 
 /* 浅色模式 - 高级材质中心球 */
 [data-theme="light"] .center-ball.advanced-material .center-inner {
-  background: linear-gradient(145deg, 
-    color-mix(in srgb, var(--theme-color) 85%, white), 
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--theme-color) 85%, white),
     color-mix(in srgb, var(--theme-color) 65%, white)
-  );
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 
-    0 8px 35px rgba(0, 0, 0, 0.1),
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
     inset 0 2px 0 rgba(255, 255, 255, 0.6),
-    0 0 30px var(--theme-glow);
+    0 0 25px var(--theme-glow) !important;
 }
 
 [data-theme="light"] .center-ball.advanced-material::before,
@@ -785,15 +798,15 @@ onUnmounted(() => {
 /* 路由模式样式 */
 .center-ball.router-mode .center-inner {
   background: linear-gradient(145deg, 
-    #8b5cf6, 
-    color-mix(in srgb, #8b5cf6 65%, black)
+    var(--router-color), 
+    color-mix(in srgb, var(--router-color) 65%, black)
   );
 }
 
 .center-ball.routing-active .center-inner {
   background: linear-gradient(145deg, 
-    #22c55e, 
-    color-mix(in srgb, #22c55e 65%, black)
+    var(--active-color), 
+    color-mix(in srgb, var(--active-color) 65%, black)
   );
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -806,8 +819,8 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 25px var(--theme-glow); }
-  50% { box-shadow: 0 4px 30px rgba(34, 197, 94, 0.6), 0 0 40px rgba(34, 197, 94, 0.4); }
+  0%, 100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 25px var(--active-glow); }
+  50% { box-shadow: 0 4px 30px rgba(34, 197, 94, 0.6), 0 0 40px var(--active-glow); }
 }
 
 .router-indicator {
@@ -846,15 +859,15 @@ onUnmounted(() => {
 /* 浅色模式 - 路由模式 */
 [data-theme="light"] .center-ball.router-mode .center-inner {
   background: linear-gradient(145deg, 
-    #8b5cf6, 
-    color-mix(in srgb, #8b5cf6 75%, white)
+    var(--router-color), 
+    color-mix(in srgb, var(--router-color) 75%, white)
   );
 }
 
 [data-theme="light"] .center-ball.routing-active .center-inner {
   background: linear-gradient(145deg, 
-    #22c55e, 
-    color-mix(in srgb, #22c55e 75%, white)
+    var(--active-color), 
+    color-mix(in srgb, var(--active-color) 75%, white)
   );
 }
 
