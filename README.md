@@ -146,6 +146,13 @@ sound-link/
 - 📝 改进文档
 - 🔧 提交 Pull Request
 
+## 社区交流
+
+加入我们的 QQ 群，与其他用户和开发者交流：
+
+- **QQ群号**：957468536
+- **群名称**：Sound Link ✨ 交流反馈群
+
 ## 许可证
 
 本项目基于 [GPL-3.0 License](LICENSE) 开源。
