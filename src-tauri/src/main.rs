@@ -144,6 +144,7 @@ struct InitialData {
     config: AppConfig,
     timestamp: u64,
     virtual_device: VirtualDeviceStatus,
+    default_device_id: Option<String>,
 }
 
 fn get_current_timestamp() -> u64 {
@@ -157,6 +158,7 @@ fn get_current_timestamp() -> u64 {
 fn get_initial_data(state: tauri::State<AppState>) -> InitialData {
     let manager = state.audio_manager.lock().unwrap();
     let devices = manager.get_devices();
+    let default_device_id = manager.get_default_device_id();
     let config = state.config.lock().unwrap().clone();
     let router = state.router.lock().unwrap();
     let virtual_device = router.get_virtual_device_status();
@@ -166,6 +168,7 @@ fn get_initial_data(state: tauri::State<AppState>) -> InitialData {
         config,
         timestamp: get_current_timestamp(),
         virtual_device,
+        default_device_id,
     }
 }
 
@@ -178,6 +181,7 @@ fn get_cached_data(state: tauri::State<AppState>) -> Option<InitialData> {
 fn refresh_and_cache(state: tauri::State<AppState>) -> InitialData {
     let manager = state.audio_manager.lock().unwrap();
     let devices = manager.get_devices();
+    let default_device_id = manager.get_default_device_id();
     let config = state.config.lock().unwrap().clone();
     let router = state.router.lock().unwrap();
     let virtual_device = router.get_virtual_device_status();
@@ -187,6 +191,7 @@ fn refresh_and_cache(state: tauri::State<AppState>) -> InitialData {
         config,
         timestamp: get_current_timestamp(),
         virtual_device,
+        default_device_id,
     };
 
     *state.cached_data.lock().unwrap() = Some(data.clone());

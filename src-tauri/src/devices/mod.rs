@@ -18,6 +18,7 @@ pub enum DeviceCategory {
 
 pub trait DeviceManager: Send + Sync {
     fn get_devices(&self) -> Vec<Device>;
+    fn get_default_device_id(&self) -> Option<String>;
 }
 
 pub use audio::AudioDeviceManager;

@@ -83,6 +83,10 @@ function applyData(data) {
   allDevices.value = data.devices;
   advancedMaterial.value = data.config.advanced_material || false;
   
+  if (data.default_device_id) {
+    activeDeviceId.value = data.default_device_id;
+  }
+  
   if (data.virtual_device) {
     virtualDeviceStatus.value = data.virtual_device;
   }

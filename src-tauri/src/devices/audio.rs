@@ -104,6 +104,32 @@ impl DeviceManager for AudioDeviceManager {
 
         devices
     }
+
+    fn get_default_device_id(&self) -> Option<String> {
+        let mut cmd = Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-Command",
+            "chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-AudioDevice -Playback | Select-Object -ExpandProperty Id"
+        ]);
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output().ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        for line in stdout.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("Active code page:") {
+                continue;
+            }
+            return Some(line.to_string());
+        }
+        
+        None
+    }
 }
 
 fn parse_device_info(id: &str, raw_name: &str) -> (String, String) {
