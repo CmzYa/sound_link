@@ -797,17 +797,17 @@ onUnmounted(() => {
 
 /* 路由模式样式 */
 .center-ball.router-mode .center-inner {
-  background: linear-gradient(145deg, 
-    var(--router-color), 
+  background: linear-gradient(145deg,
+    var(--router-color),
     color-mix(in srgb, var(--router-color) 65%, black)
-  );
+  ) !important;
 }
 
 .center-ball.routing-active .center-inner {
-  background: linear-gradient(145deg, 
-    var(--active-color), 
+  background: linear-gradient(145deg,
+    var(--active-color),
     color-mix(in srgb, var(--active-color) 65%, black)
-  );
+  ) !important;
   animation: pulse 1.5s ease-in-out infinite;
 }
 
@@ -858,17 +858,17 @@ onUnmounted(() => {
 
 /* 浅色模式 - 路由模式 */
 [data-theme="light"] .center-ball.router-mode .center-inner {
-  background: linear-gradient(145deg, 
-    var(--router-color), 
+  background: linear-gradient(145deg,
+    var(--router-color),
     color-mix(in srgb, var(--router-color) 75%, white)
-  );
+  ) !important;
 }
 
 [data-theme="light"] .center-ball.routing-active .center-inner {
-  background: linear-gradient(145deg, 
-    var(--active-color), 
+  background: linear-gradient(145deg,
+    var(--active-color),
     color-mix(in srgb, var(--active-color) 75%, white)
-  );
+  ) !important;
 }
 
 /* 安装提示弹窗 */
