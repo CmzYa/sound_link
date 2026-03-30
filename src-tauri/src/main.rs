@@ -207,6 +207,7 @@ fn get_config(state: tauri::State<AppState>) -> AppConfig {
 fn set_config(
     advanced_material: Option<bool>,
     auto_start: Option<bool>,
+    app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
     let mut config = state.config.lock().unwrap();
@@ -215,9 +216,12 @@ fn set_config(
     }
     if let Some(start) = auto_start {
         if config.auto_start != start {
-            let app_name = "Sound Link";
+            let exe_path = std::env::current_exe()
+                .map_err(|e| format!("Failed to get exe path: {}", e))?;
+            
             let auto = AutoLaunchBuilder::new()
-                .set_app_name(app_name)
+                .set_app_name("Sound Link")
+                .set_app_path(&exe_path.to_string_lossy())
                 .build()
                 .map_err(|e| format!("Failed to create auto launch: {}", e))?;
             
@@ -360,10 +364,15 @@ fn get_saved_router_config() -> SavedRouterConfig {
 #[tauri::command]
 fn get_auto_start_status(state: tauri::State<AppState>) -> bool {
     let config = state.config.lock().unwrap();
-    let app_name = "Sound Link";
+    
+    let exe_path = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(_) => return config.auto_start,
+    };
     
     if let Ok(auto) = AutoLaunchBuilder::new()
-        .set_app_name(app_name)
+        .set_app_name("Sound Link")
+        .set_app_path(&exe_path.to_string_lossy())
         .build()
     {
         let is_enabled = auto.is_enabled().unwrap_or(false);
