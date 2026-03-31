@@ -109,28 +109,17 @@ async function refreshDevices() {
   }
 }
 
-// 先显示缓存数据，后台异步刷新
 async function loadCachedOrRefresh() {
   try {
     const cached = await invoke("get_cached_data");
     if (cached) {
-      const isExpired = isCacheExpired(cached.timestamp);
-      
-      // 先显示缓存数据，让界面立即响应
       applyData(cached);
+      isReady.value = true;
       
-      // 只有未过期的缓存才标记为ready
-      if (!isExpired) {
-        isReady.value = true;
-      }
-      
-      // 如果缓存过期，后台异步刷新
-      if (isExpired) {
-        await refreshDevices();
-        isReady.value = true;
+      if (isCacheExpired(cached.timestamp)) {
+        refreshDevices().catch(e => console.error("Failed to refresh devices:", e));
       }
     } else {
-      // 没有缓存，直接刷新
       await refreshDevices();
       isReady.value = true;
     }
@@ -336,8 +325,8 @@ async function toggleRouting() {
 
 async function hideWindow() {
   try {
-    await invoke("refresh_and_cache");
     await invoke("hide_window");
+    invoke("refresh_and_cache").catch(e => console.error("Failed to cache data:", e));
   } catch (e) {
     console.error("Failed to hide window:", e);
   }

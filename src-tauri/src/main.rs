@@ -156,19 +156,26 @@ fn get_current_timestamp() -> u64 {
 
 #[tauri::command]
 fn get_initial_data(state: tauri::State<AppState>) -> InitialData {
-    let manager = state.audio_manager.lock().unwrap();
-    let devices = manager.get_devices();
-    let default_device_id = manager.get_default_device_id();
+    let devices = {
+        let manager = state.audio_manager.lock().unwrap();
+        let devices = manager.get_devices();
+        let default_device_id = manager.get_default_device_id();
+        (devices, default_device_id)
+    };
+    
     let config = state.config.lock().unwrap().clone();
-    let router = state.router.lock().unwrap();
-    let virtual_device = router.get_virtual_device_status();
+    
+    let virtual_device = {
+        let router = state.router.lock().unwrap();
+        router.get_virtual_device_status()
+    };
 
     InitialData {
-        devices,
+        devices: devices.0,
         config,
         timestamp: get_current_timestamp(),
         virtual_device,
-        default_device_id,
+        default_device_id: devices.1,
     }
 }
 
@@ -179,19 +186,26 @@ fn get_cached_data(state: tauri::State<AppState>) -> Option<InitialData> {
 
 #[tauri::command]
 fn refresh_and_cache(state: tauri::State<AppState>) -> InitialData {
-    let manager = state.audio_manager.lock().unwrap();
-    let devices = manager.get_devices();
-    let default_device_id = manager.get_default_device_id();
+    let devices = {
+        let manager = state.audio_manager.lock().unwrap();
+        let devices = manager.get_devices();
+        let default_device_id = manager.get_default_device_id();
+        (devices, default_device_id)
+    };
+    
     let config = state.config.lock().unwrap().clone();
-    let router = state.router.lock().unwrap();
-    let virtual_device = router.get_virtual_device_status();
+    
+    let virtual_device = {
+        let router = state.router.lock().unwrap();
+        router.get_virtual_device_status()
+    };
 
     let data = InitialData {
-        devices,
+        devices: devices.0,
         config,
         timestamp: get_current_timestamp(),
         virtual_device,
-        default_device_id,
+        default_device_id: devices.1,
     };
 
     *state.cached_data.lock().unwrap() = Some(data.clone());
@@ -405,65 +419,56 @@ fn save_router_config(config: SavedRouterConfig) -> Result<(), String> {
 }
 
 fn show_window(window: &WebviewWindow) {
-    match window.is_visible() {
-        Ok(true) => {
-            let _ = window.hide();
-        }
-        Ok(false) => {
-            if let Some(tray) = window.app_handle().tray_by_id("main") {
-                if let Ok(Some(rect)) = tray.rect() {
-                    let window_width = 300;
-                    let window_height = 280;
-                    let margin = 210;
+    if let Some(tray) = window.app_handle().tray_by_id("main") {
+        if let Ok(Some(rect)) = tray.rect() {
+            let window_width = 300;
+            let window_height = 280;
+            let margin = 210;
 
-                    let tray_pos: tauri::PhysicalPosition<i32> = rect.position.to_physical(1.0);
-                    let tray_size: tauri::PhysicalSize<i32> = rect.size.to_physical(1.0);
+            let tray_pos: tauri::PhysicalPosition<i32> = rect.position.to_physical(1.0);
+            let tray_size: tauri::PhysicalSize<i32> = rect.size.to_physical(1.0);
 
-                    let tray_x = tray_pos.x;
-                    let tray_y = tray_pos.y;
-                    let tray_h = tray_size.height;
+            let tray_x = tray_pos.x;
+            let tray_y = tray_pos.y;
+            let tray_h = tray_size.height;
 
-                    let mut x = tray_x;
-                    let mut y = tray_y + tray_h - 5;
+            let mut x = tray_x;
+            let mut y = tray_y + tray_h - 5;
 
-                    if let Some(monitor) = window.current_monitor().ok().flatten() {
-                        let work_area = monitor.work_area();
-                        let work_x = work_area.position.x;
-                        let work_y = work_area.position.y;
-                        let work_right = work_x + work_area.size.width as i32;
-                        let work_bottom = work_y + work_area.size.height as i32;
+            if let Some(monitor) = window.current_monitor().ok().flatten() {
+                let work_area = monitor.work_area();
+                let work_x = work_area.position.x;
+                let work_y = work_area.position.y;
+                let work_right = work_x + work_area.size.width as i32;
+                let work_bottom = work_y + work_area.size.height as i32;
 
-                        if y + window_height > work_bottom {
-                            y = tray_y - window_height - margin;
-                        }
+                if y + window_height > work_bottom {
+                    y = tray_y - window_height - margin;
+                }
 
-                        if x + window_width > work_right {
-                            x = work_right - window_width - margin;
-                        }
-                        if x < work_x {
-                            x = work_x + margin;
-                        }
+                if x + window_width > work_right {
+                    x = work_right - window_width - margin;
+                }
+                if x < work_x {
+                    x = work_x + margin;
+                }
 
-                        if y < work_y {
-                            y = work_y + margin;
-                        }
-                        if y + window_height > work_bottom {
-                            y = work_bottom - window_height - margin;
-                        }
-                    }
-
-                    let _ = window
-                        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+                if y < work_y {
+                    y = work_y + margin;
+                }
+                if y + window_height > work_bottom {
+                    y = work_bottom - window_height - margin;
                 }
             }
 
-            let _ = window.show();
-            let _ = window.set_focus();
-            // 发送事件让前端异步刷新数据
-            let _ = window.emit("window-shown", ());
+            let _ = window
+                .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
         }
-        Err(_) => {}
     }
+
+    let _ = window.show();
+    let _ = window.set_focus();
+    let _ = window.emit("window-shown", ());
 }
 
 fn show_settings_window(app: &tauri::AppHandle) {
