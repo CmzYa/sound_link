@@ -459,7 +459,8 @@ fn show_window(window: &WebviewWindow) {
 
             let _ = window.show();
             let _ = window.set_focus();
-            let _ = window.emit("refresh-devices", ());
+            // 发送事件让前端异步刷新数据
+            let _ = window.emit("window-shown", ());
         }
         Err(_) => {}
     }

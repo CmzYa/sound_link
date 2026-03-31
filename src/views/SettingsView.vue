@@ -1,8 +1,13 @@
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
 import { Speaker, Headphones, Monitor, Bluetooth, Volume2, ArrowLeft, RefreshCw } from "lucide-vue-next";
+
+// 防抖定时器
+const volumeDebounceTimers = ref({});
+const delayDebounceTimers = ref({});
+const DEBOUNCE_DELAY = 150;
 
 const props = defineProps({
   appVersion: {
@@ -117,24 +122,40 @@ async function saveDeviceSettings() {
   }
 }
 
-async function updateDeviceVolume(deviceId, volume) {
+// 防抖更新设备音量
+function updateDeviceVolume(deviceId, volume) {
   deviceVolumes.value = { ...deviceVolumes.value, [deviceId]: volume };
-  await saveDeviceSettings();
-  emit("device-settings-changed", { deviceId, volume, delayMs: deviceDelays.value[deviceId] });
-  try {
-    await invoke("set_router_device_volume", { deviceId, volume });
-  } catch (e) {
+  
+  if (volumeDebounceTimers.value[deviceId]) {
+    clearTimeout(volumeDebounceTimers.value[deviceId]);
   }
+  
+  volumeDebounceTimers.value[deviceId] = setTimeout(async () => {
+    await saveDeviceSettings();
+    emit("device-settings-changed", { deviceId, volume, delayMs: deviceDelays.value[deviceId] });
+    try {
+      await invoke("set_router_device_volume", { deviceId, volume });
+    } catch (e) {
+    }
+  }, DEBOUNCE_DELAY);
 }
 
-async function updateDeviceDelay(deviceId, delayMs) {
+// 防抖更新设备延迟
+function updateDeviceDelay(deviceId, delayMs) {
   deviceDelays.value = { ...deviceDelays.value, [deviceId]: delayMs };
-  await saveDeviceSettings();
-  emit("device-settings-changed", { deviceId, volume: deviceVolumes.value[deviceId], delayMs });
-  try {
-    await invoke("set_router_device_delay", { deviceId, delayMs });
-  } catch (e) {
+  
+  if (delayDebounceTimers.value[deviceId]) {
+    clearTimeout(delayDebounceTimers.value[deviceId]);
   }
+  
+  delayDebounceTimers.value[deviceId] = setTimeout(async () => {
+    await saveDeviceSettings();
+    emit("device-settings-changed", { deviceId, volume: deviceVolumes.value[deviceId], delayMs });
+    try {
+      await invoke("set_router_device_delay", { deviceId, delayMs });
+    } catch (e) {
+    }
+  }, DEBOUNCE_DELAY);
 }
 
 watch(advancedMaterial, () => {
@@ -237,6 +258,16 @@ onMounted(async () => {
   
   await loadDeviceSettings();
   isInitialized.value = true;
+});
+
+// 清理所有防抖定时器
+onUnmounted(() => {
+  Object.values(volumeDebounceTimers.value).forEach(timer => {
+    if (timer) clearTimeout(timer);
+  });
+  Object.values(delayDebounceTimers.value).forEach(timer => {
+    if (timer) clearTimeout(timer);
+  });
 });
 </script>
 

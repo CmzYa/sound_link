@@ -109,12 +109,21 @@ async function refreshDevices() {
   }
 }
 
+// 先显示缓存数据，后台异步刷新
 async function loadCachedOrRefresh() {
   try {
     const cached = await invoke("get_cached_data");
-    if (cached && !isCacheExpired(cached.timestamp)) {
+    if (cached) {
+      // 先显示缓存数据，让界面立即响应
       applyData(cached);
+      isReady.value = true;
+      
+      // 如果缓存过期，后台异步刷新
+      if (isCacheExpired(cached.timestamp)) {
+        refreshDevices();
+      }
     } else {
+      // 没有缓存，直接刷新
       await refreshDevices();
     }
   } catch (e) {
@@ -207,37 +216,34 @@ async function enterRouterMode() {
   
   isRouterMode.value = true;
   
-  // 加载保存的设备配置
-  try {
-    const savedConfig = await invoke("get_saved_router_config");
-    if (savedConfig && savedConfig.devices) {
-      for (const device of savedConfig.devices) {
-        deviceVolumes.value[device.id] = device.volume;
-        deviceDelays.value[device.id] = device.delay_ms;
-      }
+  // 并行加载配置和状态
+  const [savedConfigResult, statusResult] = await Promise.allSettled([
+    invoke("get_saved_router_config"),
+    invoke("get_router_status")
+  ]);
+  
+  // 处理保存的设备配置
+  if (savedConfigResult.status === 'fulfilled' && savedConfigResult.value?.devices) {
+    for (const device of savedConfigResult.value.devices) {
+      deviceVolumes.value[device.id] = device.volume;
+      deviceDelays.value[device.id] = device.delay_ms;
     }
-  } catch (e) {
-    console.error("Failed to load saved router config:", e);
+  } else if (savedConfigResult.status === 'rejected') {
+    console.error("Failed to load saved router config:", savedConfigResult.reason);
   }
   
-  // 继承当前设备管理模式下选择的设备作为广播目标
-  if (activeDeviceId.value) {
-    routerTargetIds.value = [activeDeviceId.value];
+  // 处理路由状态
+  if (statusResult.status === 'fulfilled' && statusResult.value?.is_running) {
+    isRoutingActive.value = true;
+    routerTargetIds.value = statusResult.value.target_devices
+      .filter(d => d.enabled && d.id !== virtualDeviceStatus.value.device_id)
+      .map(d => d.id);
   } else {
-    routerTargetIds.value = [];
-  }
-  
-  // 加载当前路由状态
-  try {
-    const status = await invoke("get_router_status");
-    if (status.is_running) {
-      isRoutingActive.value = true;
-      routerTargetIds.value = status.target_devices
-        .filter(d => d.enabled && d.id !== virtualDeviceStatus.value.device_id)
-        .map(d => d.id);
+    // 继承当前设备管理模式下选择的设备作为广播目标
+    routerTargetIds.value = activeDeviceId.value ? [activeDeviceId.value] : [];
+    if (statusResult.status === 'rejected') {
+      console.error("Failed to load router status:", statusResult.reason);
     }
-  } catch (e) {
-    console.error("Failed to load router status:", e);
   }
 }
 
@@ -447,6 +453,7 @@ async function checkForUpdate() {
 
 let unlisten = null;
 let unlistenSettings = null;
+let unlistenWindowShown = null;
 
 onMounted(async () => {
   const [, ,] = await Promise.allSettled([
@@ -458,6 +465,11 @@ onMounted(async () => {
   isReady.value = true;
   
   checkForUpdate();
+  
+  // 监听窗口显示事件，异步刷新数据
+  unlistenWindowShown = await listen("window-shown", () => {
+    loadCachedOrRefresh();
+  });
   
   unlisten = await listen("refresh-devices", async () => {
     await refreshDevices();
@@ -478,6 +490,7 @@ onMounted(async () => {
 onUnmounted(() => {
   if (unlisten) unlisten();
   if (unlistenSettings) unlistenSettings();
+  if (unlistenWindowShown) unlistenWindowShown();
 });
 </script>
 
