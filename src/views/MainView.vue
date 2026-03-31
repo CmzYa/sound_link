@@ -803,12 +803,38 @@ onUnmounted(() => {
   ) !important;
 }
 
+/* 路由模式 - 高级材质 */
+.center-ball.router-mode.advanced-material .center-inner {
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--router-color) 65%, white),
+    color-mix(in srgb, var(--router-color) 40%, rgba(255, 255, 255, 0.2))
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 25px var(--router-glow) !important;
+}
+
 .center-ball.routing-active .center-inner {
   background: linear-gradient(145deg,
     var(--active-color),
     color-mix(in srgb, var(--active-color) 65%, black)
   ) !important;
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* 广播激活 - 高级材质 */
+.center-ball.routing-active.advanced-material .center-inner {
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--active-color) 65%, white),
+    color-mix(in srgb, var(--active-color) 40%, rgba(255, 255, 255, 0.2))
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 2px 0 rgba(255, 255, 255, 0.35),
+    0 0 25px var(--active-glow) !important;
 }
 
 .center-ball.no-vb-cable .center-inner {
@@ -864,11 +890,37 @@ onUnmounted(() => {
   ) !important;
 }
 
+/* 浅色模式 - 路由模式高级材质 */
+[data-theme="light"] .center-ball.router-mode.advanced-material .center-inner {
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--router-color) 85%, white),
+    color-mix(in srgb, var(--router-color) 65%, white)
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    inset 0 2px 0 rgba(255, 255, 255, 0.6),
+    0 0 25px var(--router-glow) !important;
+}
+
 [data-theme="light"] .center-ball.routing-active .center-inner {
   background: linear-gradient(145deg,
     var(--active-color),
     color-mix(in srgb, var(--active-color) 75%, white)
   ) !important;
+}
+
+/* 浅色模式 - 广播激活高级材质 */
+[data-theme="light"] .center-ball.routing-active.advanced-material .center-inner {
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--active-color) 85%, white),
+    color-mix(in srgb, var(--active-color) 65%, white)
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    inset 0 2px 0 rgba(255, 255, 255, 0.6),
+    0 0 25px var(--active-glow) !important;
 }
 
 /* 安装提示弹窗 */
