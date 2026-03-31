@@ -114,21 +114,30 @@ async function loadCachedOrRefresh() {
   try {
     const cached = await invoke("get_cached_data");
     if (cached) {
+      const isExpired = isCacheExpired(cached.timestamp);
+      
       // 先显示缓存数据，让界面立即响应
       applyData(cached);
-      isReady.value = true;
+      
+      // 只有未过期的缓存才标记为ready
+      if (!isExpired) {
+        isReady.value = true;
+      }
       
       // 如果缓存过期，后台异步刷新
-      if (isCacheExpired(cached.timestamp)) {
-        refreshDevices();
+      if (isExpired) {
+        await refreshDevices();
+        isReady.value = true;
       }
     } else {
       // 没有缓存，直接刷新
       await refreshDevices();
+      isReady.value = true;
     }
   } catch (e) {
     console.error("Failed to load cached data:", e);
     await refreshDevices();
+    isReady.value = true;
   }
 }
 
