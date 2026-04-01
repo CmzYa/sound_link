@@ -119,7 +119,7 @@ impl DeviceManager for AudioDeviceManager {
 
         let output = cmd.output().ok()?;
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         for line in stdout.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with("Active code page:") {
@@ -127,7 +127,7 @@ impl DeviceManager for AudioDeviceManager {
             }
             return Some(line.to_string());
         }
-        
+
         None
     }
 }

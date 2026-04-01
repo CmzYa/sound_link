@@ -423,7 +423,9 @@ impl AudioRouter {
             let id = windows::core::HSTRING::from(device_config.id.as_str());
             if let Ok(device) = enumerator.GetDevice(&id) {
                 // 获取目标设备的系统音量控制接口
-                if let Ok(endpoint_volume) = device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
+                if let Ok(endpoint_volume) =
+                    device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None)
+                {
                     target_volume_controls.insert(device_config.id.clone(), endpoint_volume);
                 }
 
@@ -471,7 +473,10 @@ impl AudioRouter {
             }
 
             // 获取源设备(VB-Cable)的系统音量和静音状态
-            let is_muted = source_volume.GetMute().unwrap_or(windows::Win32::Foundation::BOOL(0)).as_bool();
+            let is_muted = source_volume
+                .GetMute()
+                .unwrap_or(windows::Win32::Foundation::BOOL(0))
+                .as_bool();
             let system_volume: f32 = if is_muted {
                 0.0
             } else {
@@ -485,10 +490,11 @@ impl AudioRouter {
                     .ok()
                     .and_then(|v| v.get(device_id).copied())
                     .unwrap_or(1.0);
-                
+
                 // 目标设备系统音量 = 虚拟设备音量 * 软件音量百分比
                 let target_system_volume = system_volume * app_volume;
-                let _ = endpoint_volume.SetMasterVolumeLevelScalar(target_system_volume, std::ptr::null());
+                let _ = endpoint_volume
+                    .SetMasterVolumeLevelScalar(target_system_volume, std::ptr::null());
                 // 同步静音状态
                 let _ = endpoint_volume.SetMute(is_muted, std::ptr::null());
             }

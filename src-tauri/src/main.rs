@@ -3,11 +3,11 @@
 mod devices;
 mod router;
 
+use auto_launch::AutoLaunchBuilder;
 use devices::{AudioDeviceManager, Device, DeviceManager};
 use router::{
     AudioRouter, RouterConfig, RouterDevice, RouterStatus, ValidationResult, VirtualDeviceStatus,
 };
-use auto_launch::AutoLaunchBuilder;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -162,9 +162,9 @@ fn get_initial_data(state: tauri::State<AppState>) -> InitialData {
         let default_device_id = manager.get_default_device_id();
         (devices, default_device_id)
     };
-    
+
     let config = state.config.lock().unwrap().clone();
-    
+
     let virtual_device = {
         let router = state.router.lock().unwrap();
         router.get_virtual_device_status()
@@ -192,9 +192,9 @@ fn refresh_and_cache(state: tauri::State<AppState>) -> InitialData {
         let default_device_id = manager.get_default_device_id();
         (devices, default_device_id)
     };
-    
+
     let config = state.config.lock().unwrap().clone();
-    
+
     let virtual_device = {
         let router = state.router.lock().unwrap();
         router.get_virtual_device_status()
@@ -235,19 +235,21 @@ fn set_config(
     }
     if let Some(start) = auto_start {
         if config.auto_start != start {
-            let exe_path = std::env::current_exe()
-                .map_err(|e| format!("Failed to get exe path: {}", e))?;
-            
+            let exe_path =
+                std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
+
             let auto = AutoLaunchBuilder::new()
                 .set_app_name("Sound Link")
                 .set_app_path(&exe_path.to_string_lossy())
                 .build()
                 .map_err(|e| format!("Failed to create auto launch: {}", e))?;
-            
+
             if start {
-                auto.enable().map_err(|e| format!("Failed to enable auto start: {}", e))?;
+                auto.enable()
+                    .map_err(|e| format!("Failed to enable auto start: {}", e))?;
             } else {
-                auto.disable().map_err(|e| format!("Failed to disable auto start: {}", e))?;
+                auto.disable()
+                    .map_err(|e| format!("Failed to disable auto start: {}", e))?;
             }
             config.auto_start = start;
         }
@@ -389,12 +391,12 @@ fn get_saved_router_config() -> SavedRouterConfig {
 #[tauri::command]
 fn get_auto_start_status(state: tauri::State<AppState>) -> bool {
     let config = state.config.lock().unwrap();
-    
+
     let exe_path = match std::env::current_exe() {
         Ok(path) => path,
         Err(_) => return config.auto_start,
     };
-    
+
     if let Ok(auto) = AutoLaunchBuilder::new()
         .set_app_name("Sound Link")
         .set_app_path(&exe_path.to_string_lossy())
@@ -461,8 +463,8 @@ fn show_window(window: &WebviewWindow) {
                 }
             }
 
-            let _ = window
-                .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+            let _ =
+                window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
         }
     }
 

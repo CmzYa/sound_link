@@ -2,7 +2,15 @@
 import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
-import { Speaker, Headphones, Monitor, Bluetooth, Volume2, ArrowLeft, RefreshCw } from "lucide-vue-next";
+import {
+  Speaker,
+  Headphones,
+  Monitor,
+  Bluetooth,
+  Volume2,
+  ArrowLeft,
+  RefreshCw,
+} from "lucide-vue-next";
 
 // 防抖定时器
 const volumeDebounceTimers = ref({});
@@ -12,27 +20,31 @@ const DEBOUNCE_DELAY = 150;
 const props = defineProps({
   appVersion: {
     type: String,
-    default: ""
+    default: "",
   },
   initialDevices: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   initialAdvancedMaterial: {
     type: Boolean,
-    default: false
+    default: false,
   },
   hasUpdate: {
     type: Boolean,
-    default: false
+    default: false,
   },
   latestVersion: {
     type: String,
-    default: ""
-  }
+    default: "",
+  },
 });
 
-const emit = defineEmits(["close", "config-changed", "device-settings-changed"]);
+const emit = defineEmits([
+  "close",
+  "config-changed",
+  "device-settings-changed",
+]);
 
 const devices = ref([]);
 const advancedMaterial = ref(false);
@@ -50,16 +62,21 @@ const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
 // 过滤掉 Cable 设备
 const availableDevices = computed(() => {
-  return devices.value.filter(d => !d.name.toLowerCase().includes('cable'));
+  return devices.value.filter((d) => !d.name.toLowerCase().includes("cable"));
 });
 
 function getDeviceIcon(type) {
   switch (type) {
-    case "speakers": return Speaker;
-    case "headphones": return Headphones;
-    case "hdmi": return Monitor;
-    case "bluetooth": return Bluetooth;
-    default: return Volume2;
+    case "speakers":
+      return Speaker;
+    case "headphones":
+      return Headphones;
+    case "hdmi":
+      return Monitor;
+    case "bluetooth":
+      return Bluetooth;
+    default:
+      return Volume2;
   }
 }
 
@@ -82,9 +99,9 @@ async function loadConfig() {
 
 async function saveConfig() {
   try {
-    await invoke("set_config", { 
+    await invoke("set_config", {
       advancedMaterial: advancedMaterial.value,
-      autoStart: autoStart.value
+      autoStart: autoStart.value,
     });
   } catch (e) {
     console.error("Failed to save config:", e);
@@ -108,13 +125,13 @@ async function loadDeviceSettings() {
 async function saveDeviceSettings() {
   try {
     const config = {
-      devices: availableDevices.value.map(d => ({
+      devices: availableDevices.value.map((d) => ({
         id: d.id,
         name: d.name,
         volume: deviceVolumes.value[d.id] ?? 1.0,
         delay_ms: deviceDelays.value[d.id] ?? 0,
-        enabled: true
-      }))
+        enabled: true,
+      })),
     };
     await invoke("save_router_config", { config });
   } catch (e) {
@@ -125,36 +142,42 @@ async function saveDeviceSettings() {
 // 防抖更新设备音量
 function updateDeviceVolume(deviceId, volume) {
   deviceVolumes.value = { ...deviceVolumes.value, [deviceId]: volume };
-  
+
   if (volumeDebounceTimers.value[deviceId]) {
     clearTimeout(volumeDebounceTimers.value[deviceId]);
   }
-  
+
   volumeDebounceTimers.value[deviceId] = setTimeout(async () => {
     await saveDeviceSettings();
-    emit("device-settings-changed", { deviceId, volume, delayMs: deviceDelays.value[deviceId] });
+    emit("device-settings-changed", {
+      deviceId,
+      volume,
+      delayMs: deviceDelays.value[deviceId],
+    });
     try {
       await invoke("set_router_device_volume", { deviceId, volume });
-    } catch (e) {
-    }
+    } catch (e) {}
   }, DEBOUNCE_DELAY);
 }
 
 // 防抖更新设备延迟
 function updateDeviceDelay(deviceId, delayMs) {
   deviceDelays.value = { ...deviceDelays.value, [deviceId]: delayMs };
-  
+
   if (delayDebounceTimers.value[deviceId]) {
     clearTimeout(delayDebounceTimers.value[deviceId]);
   }
-  
+
   delayDebounceTimers.value[deviceId] = setTimeout(async () => {
     await saveDeviceSettings();
-    emit("device-settings-changed", { deviceId, volume: deviceVolumes.value[deviceId], delayMs });
+    emit("device-settings-changed", {
+      deviceId,
+      volume: deviceVolumes.value[deviceId],
+      delayMs,
+    });
     try {
       await invoke("set_router_device_delay", { deviceId, delayMs });
-    } catch (e) {
-    }
+    } catch (e) {}
   }, DEBOUNCE_DELAY);
 }
 
@@ -171,13 +194,13 @@ watch(autoStart, () => {
 });
 
 function compareVersions(current, latest) {
-  const currentParts = current.split('.').map(Number);
-  const latestParts = latest.split('.').map(Number);
-  
+  const currentParts = current.split(".").map(Number);
+  const latestParts = latest.split(".").map(Number);
+
   for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
     const currentPart = currentParts[i] || 0;
     const latestPart = latestParts[i] || 0;
-    
+
     if (latestPart > currentPart) return 1;
     if (latestPart < currentPart) return -1;
   }
@@ -186,39 +209,41 @@ function compareVersions(current, latest) {
 
 async function checkForUpdate() {
   if (isCheckingUpdate.value) return;
-  
+
   isCheckingUpdate.value = true;
   updateInfo.value = null;
-  
+
   try {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+    );
     if (!response.ok) throw new Error("Failed to fetch release info");
-    
+
     const release = await response.json();
-    const latestVersion = release.tag_name.replace(/^v/, '');
+    const latestVersion = release.tag_name.replace(/^v/, "");
     const currentVersion = props.appVersion || "0.0.0";
-    
+
     const comparison = compareVersions(currentVersion, latestVersion);
-    
+
     if (comparison > 0) {
       updateInfo.value = {
         hasUpdate: true,
         latestVersion,
         currentVersion,
-        releaseUrl: release.html_url
+        releaseUrl: release.html_url,
       };
     } else {
       updateInfo.value = {
         hasUpdate: false,
         latestVersion,
-        currentVersion
+        currentVersion,
       };
     }
   } catch (e) {
     console.error("Failed to check for updates:", e);
     updateInfo.value = {
       hasUpdate: false,
-      error: true
+      error: true,
     };
   } finally {
     isCheckingUpdate.value = false;
@@ -239,33 +264,33 @@ onMounted(async () => {
   } else {
     await loadDevices();
   }
-  
+
   advancedMaterial.value = props.initialAdvancedMaterial;
-  
+
   try {
     autoStart.value = await invoke("get_auto_start_status");
   } catch (e) {
     console.error("Failed to load auto start status:", e);
   }
-  
+
   if (props.hasUpdate && props.latestVersion) {
     updateInfo.value = {
       hasUpdate: true,
       latestVersion: props.latestVersion,
-      currentVersion: props.appVersion
+      currentVersion: props.appVersion,
     };
   }
-  
+
   await loadDeviceSettings();
   isInitialized.value = true;
 });
 
 // 清理所有防抖定时器
 onUnmounted(() => {
-  Object.values(volumeDebounceTimers.value).forEach(timer => {
+  Object.values(volumeDebounceTimers.value).forEach((timer) => {
     if (timer) clearTimeout(timer);
   });
-  Object.values(delayDebounceTimers.value).forEach(timer => {
+  Object.values(delayDebounceTimers.value).forEach((timer) => {
     if (timer) clearTimeout(timer);
   });
 });
@@ -279,15 +304,15 @@ onUnmounted(() => {
       </button>
       <h2>设置</h2>
     </div>
-    
+
     <div class="settings-scroll">
       <div class="setting-item">
         <div class="setting-label">设备音量与延迟</div>
         <p class="setting-hint">设置广播时各设备的音量和延迟</p>
-        
+
         <div class="device-list">
-          <div 
-            v-for="device in availableDevices" 
+          <div
+            v-for="device in availableDevices"
             :key="device.id"
             class="device-item"
           >
@@ -295,87 +320,107 @@ onUnmounted(() => {
               <component :is="getDeviceIcon(device.type)" :size="14" />
               <span class="device-name">{{ device.name }}</span>
             </div>
-            
+
             <div class="device-settings">
               <div class="setting-row">
                 <span class="row-label">音量</span>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="100" 
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
                   :value="(deviceVolumes[device.id] ?? 1) * 100"
-                  @input="updateDeviceVolume(device.id, $event.target.value / 100)"
+                  @input="
+                    updateDeviceVolume(device.id, $event.target.value / 100)
+                  "
                   class="slider"
+                />
+                <span class="row-value"
+                  >{{
+                    Math.round((deviceVolumes[device.id] ?? 1) * 100)
+                  }}%</span
                 >
-                <span class="row-value">{{ Math.round((deviceVolumes[device.id] ?? 1) * 100) }}%</span>
               </div>
               <div class="setting-row">
                 <span class="row-label">延迟</span>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="500" 
+                <input
+                  type="range"
+                  min="0"
+                  max="500"
                   :value="deviceDelays[device.id] ?? 0"
-                  @input="updateDeviceDelay(device.id, parseInt($event.target.value))"
+                  @input="
+                    updateDeviceDelay(device.id, parseInt($event.target.value))
+                  "
                   class="slider"
+                />
+                <span class="row-value"
+                  >{{ deviceDelays[device.id] ?? 0 }}ms</span
                 >
-                <span class="row-value">{{ deviceDelays[device.id] ?? 0 }}ms</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-      
+
       <div class="setting-item">
         <div class="setting-label">高级材质</div>
         <p class="setting-hint">启用毛玻璃效果和更丰富的视觉样式</p>
-        
+
         <div class="toggle-container">
-          <div 
-            class="toggle-switch" 
+          <div
+            class="toggle-switch"
             :class="{ active: advancedMaterial }"
             @click="advancedMaterial = !advancedMaterial"
           >
             <div class="toggle-thumb"></div>
           </div>
-          <span class="toggle-label">{{ advancedMaterial ? '已开启' : '已关闭' }}</span>
+          <span class="toggle-label">{{
+            advancedMaterial ? "已开启" : "已关闭"
+          }}</span>
         </div>
       </div>
-      
+
       <div class="setting-item">
         <div class="setting-label">开机自启动</div>
         <p class="setting-hint">系统启动时自动运行应用</p>
-        
+
         <div class="toggle-container">
-          <div 
-            class="toggle-switch" 
+          <div
+            class="toggle-switch"
             :class="{ active: autoStart }"
             @click="autoStart = !autoStart"
           >
             <div class="toggle-thumb"></div>
           </div>
-          <span class="toggle-label">{{ autoStart ? '已开启' : '已关闭' }}</span>
+          <span class="toggle-label">{{
+            autoStart ? "已开启" : "已关闭"
+          }}</span>
         </div>
       </div>
     </div>
-    
+
     <div class="about-section">
       <div class="about-title">Sound Link</div>
-      <div class="about-version">v{{ props.appVersion || '...' }}</div>
+      <div class="about-version">v{{ props.appVersion || "..." }}</div>
       <div class="about-links">
-        <a href="https://github.com/CmzYa/sound_link" class="about-link" target="_blank">
+        <a
+          href="https://github.com/CmzYa/sound_link"
+          class="about-link"
+          target="_blank"
+        >
           <svg class="github-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            <path
+              d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+            />
           </svg>
           GitHub
         </a>
-        <button 
-          class="about-link update-btn" 
+        <button
+          class="about-link update-btn"
           :class="{ 'has-update': updateInfo?.hasUpdate }"
           @click="updateInfo?.hasUpdate ? openReleasePage() : checkForUpdate()"
           :disabled="isCheckingUpdate"
         >
-          <RefreshCw :size="14" :class="{ 'spinning': isCheckingUpdate }" />
+          <RefreshCw :size="14" :class="{ spinning: isCheckingUpdate }" />
           <span v-if="isCheckingUpdate">检查中...</span>
           <span v-else-if="updateInfo?.hasUpdate">有新版本</span>
           <span v-else-if="updateInfo && !updateInfo.error">已是最新</span>
@@ -391,7 +436,8 @@ onUnmounted(() => {
   width: 280px;
   height: 280px;
   padding: 12px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text-color);
   display: flex;
   flex-direction: column;
@@ -643,7 +689,11 @@ h2 {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
