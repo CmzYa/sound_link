@@ -646,7 +646,6 @@ onUnmounted(() => {
       :latest-version="latestVersion"
       @close="handleSettingsClose"
       @config-changed="refreshDevices"
-      @device-settings-changed="handleDeviceSettingsChanged"
     />
 
     <template v-else>

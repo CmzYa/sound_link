@@ -17,7 +17,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, WebviewWindow,
+    webview::WebviewWindowBuilder, Emitter, Manager, WebviewWindow,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -529,10 +529,99 @@ fn show_settings_window(app: &tauri::AppHandle) {
     }
 }
 
+fn show_router_settings_window(app: &tauri::AppHandle) {
+    // 如果窗口已存在，直接显示
+    if let Some(window) = app.get_webview_window("router-settings") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+
+    // 计算窗口位置
+    let window_width = 300;
+    let window_height = 320;
+    let margin = 210;
+    let mut x = 100;
+    let mut y = 100;
+
+    if let Some(tray) = app.tray_by_id("main") {
+        if let Ok(Some(rect)) = tray.rect() {
+            let tray_pos: tauri::PhysicalPosition<i32> = rect.position.to_physical(1.0);
+            let tray_size: tauri::PhysicalSize<i32> = rect.size.to_physical(1.0);
+
+            let tray_x = tray_pos.x;
+            let tray_y = tray_pos.y;
+            let tray_h = tray_size.height;
+
+            x = tray_x;
+            y = tray_y + tray_h - 5;
+
+            if let Some(main_window) = app.get_webview_window("main") {
+                if let Some(monitor) = main_window.current_monitor().ok().flatten() {
+                    let work_area = monitor.work_area();
+                    let work_x = work_area.position.x;
+                    let work_y = work_area.position.y;
+                    let work_right = work_x + work_area.size.width as i32;
+                    let work_bottom = work_y + work_area.size.height as i32;
+
+                    if y + window_height > work_bottom {
+                        y = tray_y - window_height - margin;
+                    }
+
+                    if x + window_width > work_right {
+                        x = work_right - window_width - margin;
+                    }
+                    if x < work_x {
+                        x = work_x + margin;
+                    }
+
+                    if y < work_y {
+                        y = work_y + margin;
+                    }
+                    if y + window_height > work_bottom {
+                        y = work_bottom - window_height - margin;
+                    }
+                }
+            }
+        }
+    }
+
+    // 创建新窗口
+    let window = WebviewWindowBuilder::new(
+        app,
+        "router-settings",
+        tauri::WebviewUrl::App("router-settings.html".into()),
+    )
+    .title("路由设置 - Sound Link")
+    .inner_size(window_width as f64, window_height as f64)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .position(x as f64, y as f64)
+    .build();
+
+    if let Ok(window) = window {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = window.set_shadow(true);
+        }
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+#[tauri::command]
+fn open_router_settings_window(app: tauri::AppHandle) {
+    show_router_settings_window(&app);
+}
+
 fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let router_settings = MenuItem::with_id(app, "router_settings", "路由设置", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&settings, &quit])?;
+    let menu = Menu::with_items(app, &[&router_settings, &settings, &quit])?;
 
     let is_dark = get_system_theme().unwrap_or(false);
     let icon = create_tray_icon(is_dark);
@@ -542,6 +631,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
+            "router_settings" => show_router_settings_window(app),
             "settings" => show_settings_window(app),
             "quit" => app.exit(0),
             _ => {}
@@ -615,6 +705,7 @@ fn main() {
             get_saved_router_config,
             save_router_config,
             get_auto_start_status,
+            open_router_settings_window,
         ])
         .setup(|app| {
             setup_tray(app.handle())?;

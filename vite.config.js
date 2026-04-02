@@ -4,6 +4,7 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [vue()],
   root: "src",
+  base: "./",
   clearScreen: false,
   server: {
     port: 1420,
@@ -14,5 +15,11 @@ export default defineConfig({
   },
   build: {
     outDir: "../output/dist",
+    rollupOptions: {
+      input: {
+        main: "src/index.html",
+        routerSettings: "src/router-settings.html",
+      },
+    },
   },
 });
