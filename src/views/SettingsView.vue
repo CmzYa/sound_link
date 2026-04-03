@@ -1,13 +1,30 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
-import { ArrowLeft, RefreshCw, ChevronRight } from "lucide-vue-next";
+import {
+  Speaker,
+  Headphones,
+  Monitor,
+  Bluetooth,
+  Volume2,
+  ArrowLeft,
+  RefreshCw,
+} from "lucide-vue-next";
+
+// 防抖定时器
+const volumeDebounceTimers = ref({});
+const delayDebounceTimers = ref({});
+const DEBOUNCE_DELAY = 150;
 
 const props = defineProps({
   appVersion: {
     type: String,
     default: "",
+  },
+  initialDevices: {
+    type: Array,
+    default: () => [],
   },
   initialAdvancedMaterial: {
     type: Boolean,
@@ -23,22 +40,51 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["close", "config-changed"]);
+const emit = defineEmits([
+  "close",
+  "config-changed",
+  "device-settings-changed",
+]);
 
+const devices = ref([]);
 const advancedMaterial = ref(false);
 const autoStart = ref(false);
 const isCheckingUpdate = ref(false);
 const updateInfo = ref(null);
 const isInitialized = ref(false);
 
+// 所有设备的音量和延迟配置
+const deviceVolumes = ref({});
+const deviceDelays = ref({});
+
 const GITHUB_REPO = "CmzYa/sound_link";
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
-async function openRouterSettingsWindow() {
+// 过滤掉 Cable 设备
+const availableDevices = computed(() => {
+  return devices.value.filter((d) => !d.name.toLowerCase().includes("cable"));
+});
+
+function getDeviceIcon(type) {
+  switch (type) {
+    case "speakers":
+      return Speaker;
+    case "headphones":
+      return Headphones;
+    case "hdmi":
+      return Monitor;
+    case "bluetooth":
+      return Bluetooth;
+    default:
+      return Volume2;
+  }
+}
+
+async function loadDevices() {
   try {
-    await invoke("open_router_settings_window");
+    devices.value = await invoke("get_audio_devices");
   } catch (e) {
-    console.error("Failed to open router settings window:", e);
+    console.error("Failed to load devices:", e);
   }
 }
 
@@ -60,6 +106,79 @@ async function saveConfig() {
   } catch (e) {
     console.error("Failed to save config:", e);
   }
+}
+
+async function loadDeviceSettings() {
+  try {
+    const savedConfig = await invoke("get_saved_router_config");
+    if (savedConfig && savedConfig.devices) {
+      for (const device of savedConfig.devices) {
+        deviceVolumes.value[device.id] = device.volume;
+        deviceDelays.value[device.id] = device.delay_ms;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load device settings:", e);
+  }
+}
+
+async function saveDeviceSettings() {
+  try {
+    const config = {
+      devices: availableDevices.value.map((d) => ({
+        id: d.id,
+        name: d.name,
+        volume: deviceVolumes.value[d.id] ?? 1.0,
+        delay_ms: deviceDelays.value[d.id] ?? 0,
+        enabled: true,
+      })),
+    };
+    await invoke("save_router_config", { config });
+  } catch (e) {
+    console.error("Failed to save device settings:", e);
+  }
+}
+
+// 防抖更新设备音量
+function updateDeviceVolume(deviceId, volume) {
+  deviceVolumes.value = { ...deviceVolumes.value, [deviceId]: volume };
+
+  if (volumeDebounceTimers.value[deviceId]) {
+    clearTimeout(volumeDebounceTimers.value[deviceId]);
+  }
+
+  volumeDebounceTimers.value[deviceId] = setTimeout(async () => {
+    await saveDeviceSettings();
+    emit("device-settings-changed", {
+      deviceId,
+      volume,
+      delayMs: deviceDelays.value[deviceId],
+    });
+    try {
+      await invoke("set_router_device_volume", { deviceId, volume });
+    } catch (e) {}
+  }, DEBOUNCE_DELAY);
+}
+
+// 防抖更新设备延迟
+function updateDeviceDelay(deviceId, delayMs) {
+  deviceDelays.value = { ...deviceDelays.value, [deviceId]: delayMs };
+
+  if (delayDebounceTimers.value[deviceId]) {
+    clearTimeout(delayDebounceTimers.value[deviceId]);
+  }
+
+  delayDebounceTimers.value[deviceId] = setTimeout(async () => {
+    await saveDeviceSettings();
+    emit("device-settings-changed", {
+      deviceId,
+      volume: deviceVolumes.value[deviceId],
+      delayMs,
+    });
+    try {
+      await invoke("set_router_device_delay", { deviceId, delayMs });
+    } catch (e) {}
+  }, DEBOUNCE_DELAY);
 }
 
 watch(advancedMaterial, () => {
@@ -140,6 +259,12 @@ async function openReleasePage() {
 }
 
 onMounted(async () => {
+  if (props.initialDevices && props.initialDevices.length > 0) {
+    devices.value = props.initialDevices;
+  } else {
+    await loadDevices();
+  }
+
   advancedMaterial.value = props.initialAdvancedMaterial;
 
   try {
@@ -156,7 +281,18 @@ onMounted(async () => {
     };
   }
 
+  await loadDeviceSettings();
   isInitialized.value = true;
+});
+
+// 清理所有防抖定时器
+onUnmounted(() => {
+  Object.values(volumeDebounceTimers.value).forEach((timer) => {
+    if (timer) clearTimeout(timer);
+  });
+  Object.values(delayDebounceTimers.value).forEach((timer) => {
+    if (timer) clearTimeout(timer);
+  });
 });
 </script>
 
@@ -170,13 +306,58 @@ onMounted(async () => {
     </div>
 
     <div class="settings-scroll">
-      <div class="setting-item clickable" @click="openRouterSettingsWindow">
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">路由设置</div>
-            <p class="setting-hint">设置广播时各设备的音量和延迟</p>
+      <div class="setting-item">
+        <div class="setting-label">设备音量与延迟</div>
+        <p class="setting-hint">设置广播时各设备的音量和延迟</p>
+
+        <div class="device-list">
+          <div
+            v-for="device in availableDevices"
+            :key="device.id"
+            class="device-item"
+          >
+            <div class="device-header">
+              <component :is="getDeviceIcon(device.type)" :size="14" />
+              <span class="device-name">{{ device.name }}</span>
+            </div>
+
+            <div class="device-settings">
+              <div class="setting-row">
+                <span class="row-label">音量</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  :value="(deviceVolumes[device.id] ?? 1) * 100"
+                  @input="
+                    updateDeviceVolume(device.id, $event.target.value / 100)
+                  "
+                  class="slider"
+                />
+                <span class="row-value"
+                  >{{
+                    Math.round((deviceVolumes[device.id] ?? 1) * 100)
+                  }}%</span
+                >
+              </div>
+              <div class="setting-row">
+                <span class="row-label">延迟</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="500"
+                  :value="deviceDelays[device.id] ?? 0"
+                  @input="
+                    updateDeviceDelay(device.id, parseInt($event.target.value))
+                  "
+                  class="slider"
+                />
+                <span class="row-value"
+                  >{{ deviceDelays[device.id] ?? 0 }}ms</span
+                >
+              </div>
+            </div>
           </div>
-          <ChevronRight :size="16" class="chevron" />
         </div>
       </div>
 
@@ -307,43 +488,6 @@ h2 {
   margin-bottom: 12px;
 }
 
-.setting-item.clickable {
-  cursor: pointer;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  transition: all 0.2s;
-}
-
-.setting-item.clickable:hover {
-  border-color: var(--theme-color);
-  background: color-mix(in srgb, var(--theme-color) 10%, transparent);
-}
-
-.setting-item.clickable .setting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.setting-item.clickable .setting-info {
-  flex: 1;
-}
-
-.setting-item.clickable .setting-label {
-  margin-bottom: 2px;
-}
-
-.setting-item.clickable .setting-hint {
-  margin-bottom: 0;
-}
-
-.chevron {
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
 .setting-label {
   font-size: 13px;
   font-weight: 500;
@@ -355,6 +499,78 @@ h2 {
   color: var(--text-secondary);
   margin: 0 0 6px 0;
   line-height: 1.4;
+}
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.device-item {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.device-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--theme-color);
+}
+
+.device-header .device-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-settings {
+  padding: 4px 10px 8px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.row-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 28px;
+}
+
+.slider {
+  flex: 1;
+  height: 3px;
+  -webkit-appearance: none;
+  background: var(--glass-border);
+  border-radius: 2px;
+  outline: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--theme-color);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.row-value {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 36px;
+  text-align: right;
 }
 
 .toggle-container {

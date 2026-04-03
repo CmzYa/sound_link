@@ -646,6 +646,7 @@ onUnmounted(() => {
       :latest-version="latestVersion"
       @close="handleSettingsClose"
       @config-changed="refreshDevices"
+      @device-settings-changed="handleDeviceSettingsChanged"
     />
 
     <template v-else>
@@ -692,9 +693,6 @@ onUnmounted(() => {
         <div v-if="isRouterMode" class="router-status">
           <span v-if="isRoutingActive" class="status-active">
             广播中 ({{ routerTargetIds.length }} 设备)
-          </span>
-          <span v-else-if="routerTargetIds.length > 0" class="status-ready">
-            已选择 {{ routerTargetIds.length }} 个设备
           </span>
           <span v-else class="status-hint"> 点击设备选择广播目标 </span>
         </div>
