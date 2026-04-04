@@ -10,11 +10,11 @@ import {
   Settings,
   Radio,
   Route,
-  ExternalLink,
   RefreshCw,
 } from "lucide-vue-next";
 import DeviceBall from "../components/DeviceBall.vue";
 import SettingsView from "./SettingsView.vue";
+import { compareVersions } from "../utils/version.js";
 
 const BALL_SIZE = 44;
 const UNSNAP_RADIUS = 85;
@@ -31,6 +31,7 @@ const switchingDeviceId = ref(null);
 const appVersion = ref("");
 const hasUpdate = ref(false);
 const latestVersion = ref("");
+const isWindowShowing = ref(false);
 
 // 路由模式相关状态
 const isRouterMode = ref(false);
@@ -55,15 +56,8 @@ function handleSettingsClose() {
 }
 
 function handleDeviceSettingsChanged(settings) {
-  // 同步设备设置到主界面，确保响应式更新
-  deviceVolumes.value = {
-    ...deviceVolumes.value,
-    [settings.deviceId]: settings.volume,
-  };
-  deviceDelays.value = {
-    ...deviceDelays.value,
-    [settings.deviceId]: settings.delayMs,
-  };
+  deviceVolumes.value[settings.deviceId] = settings.volume;
+  deviceDelays.value[settings.deviceId] = settings.delayMs;
 }
 
 const devices = computed(() => {
@@ -85,8 +79,8 @@ const devicePositions = computed(() => {
       : device.id === activeDeviceId.value;
 
     const baseAngle = (index / total) * 2 * Math.PI;
-    const offset = Math.PI / total;
-    const angle = baseAngle + offset;
+    const startOffset = -Math.PI / 2;
+    const angle = baseAngle + startOffset;
     const radius = isSnapped ? SNAP_RADIUS : UNSNAP_RADIUS;
 
     return {
@@ -127,11 +121,12 @@ async function refreshDevices() {
 }
 
 async function loadCachedOrRefresh() {
+  isReady.value = true;
+
   try {
     const cached = await invoke("get_cached_data");
     if (cached) {
       applyData(cached);
-      isReady.value = true;
 
       if (isCacheExpired(cached.timestamp)) {
         refreshDevices().catch((e) =>
@@ -140,12 +135,10 @@ async function loadCachedOrRefresh() {
       }
     } else {
       await refreshDevices();
-      isReady.value = true;
     }
   } catch (e) {
     console.error("Failed to load cached data:", e);
     await refreshDevices();
-    isReady.value = true;
   }
 }
 
@@ -351,9 +344,6 @@ async function toggleRouting() {
 async function hideWindow() {
   try {
     await invoke("hide_window");
-    invoke("refresh_and_cache").catch((e) =>
-      console.error("Failed to cache data:", e),
-    );
   } catch (e) {
     console.error("Failed to hide window:", e);
   }
@@ -485,20 +475,6 @@ async function loadAppVersion() {
   }
 }
 
-function compareVersions(current, latest) {
-  const currentParts = current.split(".").map(Number);
-  const latestParts = latest.split(".").map(Number);
-
-  for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
-    const currentPart = currentParts[i] || 0;
-    const latestPart = latestParts[i] || 0;
-
-    if (latestPart > currentPart) return 1;
-    if (latestPart < currentPart) return -1;
-  }
-  return 0;
-}
-
 async function checkForUpdate() {
   try {
     const response = await fetch(
@@ -524,18 +500,20 @@ let unlistenSettings = null;
 let unlistenWindowShown = null;
 
 onMounted(async () => {
-  const [, ,] = await Promise.allSettled([
+  await Promise.allSettled([
     loadCachedOrRefresh(),
     setupThemeListener(),
     loadAppVersion(),
   ]);
 
-  isReady.value = true;
-
   checkForUpdate();
 
   // 监听窗口显示事件，异步刷新数据
   unlistenWindowShown = await listen("window-shown", () => {
+    isWindowShowing.value = true;
+    setTimeout(() => {
+      isWindowShowing.value = false;
+    }, 200);
     loadCachedOrRefresh();
   });
 
@@ -549,7 +527,7 @@ onMounted(async () => {
 
   const appWindow = getCurrentWindow();
   appWindow.onFocusChanged(({ payload: focused }) => {
-    if (!focused) {
+    if (!focused && !isWindowShowing.value) {
       hideWindow();
     }
   });
@@ -689,13 +667,6 @@ onUnmounted(() => {
         <div v-if="devices.length === 0" class="no-device-hint">
           未检测到音频设备
         </div>
-
-        <div v-if="isRouterMode" class="router-status">
-          <span v-if="isRoutingActive" class="status-active">
-            广播中 ({{ routerTargetIds.length }} 设备)
-          </span>
-          <span v-else class="status-hint"> 点击设备选择广播目标 </span>
-        </div>
       </div>
     </template>
   </div>
@@ -705,6 +676,9 @@ onUnmounted(() => {
 #app {
   pointer-events: none;
   opacity: 0.95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #app.is-ready {
@@ -987,28 +961,6 @@ onUnmounted(() => {
   color: var(--text-secondary);
   white-space: nowrap;
   pointer-events: none;
-}
-
-.router-status {
-  position: absolute;
-  bottom: -45px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 11px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.router-status .status-active {
-  color: #22c55e;
-}
-
-.router-status .status-ready {
-  color: #8b5cf6;
-}
-
-.router-status .status-hint {
-  color: var(--text-tertiary);
 }
 
 /* 浅色模式 - 路由模式 */

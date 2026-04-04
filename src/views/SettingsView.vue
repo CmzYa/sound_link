@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   RefreshCw,
 } from "lucide-vue-next";
+import { compareVersions } from "../utils/version.js";
 
 // 防抖定时器
 const volumeDebounceTimers = ref({});
@@ -192,20 +193,6 @@ watch(autoStart, () => {
   saveConfig();
   emit("config-changed");
 });
-
-function compareVersions(current, latest) {
-  const currentParts = current.split(".").map(Number);
-  const latestParts = latest.split(".").map(Number);
-
-  for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
-    const currentPart = currentParts[i] || 0;
-    const latestPart = latestParts[i] || 0;
-
-    if (latestPart > currentPart) return 1;
-    if (latestPart < currentPart) return -1;
-  }
-  return 0;
-}
 
 async function checkForUpdate() {
   if (isCheckingUpdate.value) return;
@@ -441,6 +428,8 @@ onUnmounted(() => {
   color: var(--text-color);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  margin: auto;
 }
 
 .header {

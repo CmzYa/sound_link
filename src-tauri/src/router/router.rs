@@ -360,40 +360,104 @@ impl AudioRouter {
         let mut render_clients: HashMap<String, IAudioClient> = HashMap::new();
         let mut render_outputs: HashMap<String, IAudioRenderClient> = HashMap::new();
         let mut delay_buffers: HashMap<String, DelayBuffer> = HashMap::new();
+        let mut target_channels_map: HashMap<String, usize> = HashMap::new();  // 目标设备通道数
         let mut volume_sync = VolumeSync::new(shared_volumes.clone());
+
+        println!("[Router] ┌─────────────────────────────────────────┐");
+        println!("[Router] │          开始初始化渲染设备             │");
+        println!("[Router] └─────────────────────────────────────────┘");
+        let mut device_index = 0u32;
 
         for device_config in &config.devices {
             if !target_ids.contains(&device_config.id) || !device_config.enabled {
                 continue;
             }
-
+            
+            device_index += 1;
             let target_id = windows::core::HSTRING::from(device_config.id.as_str());
+            
             if let Ok(target_device) = enumerator.GetDevice(&target_id) {
+                println!("[Router]");
+                println!("[Router] ▸ #{} {}", device_index, device_config.name);
+                
                 // 音量控制接口
                 if let Ok(target_volume_control) = target_device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
                     volume_sync.add_target(device_config.id.clone(), target_volume_control);
                 }
 
-                // 渲染客户端
-                if let Ok(audio_client) = target_device.Activate::<IAudioClient>(CLSCTX_ALL, None) {
-                    if audio_client.Initialize(
-                        AUDCLNT_SHAREMODE_SHARED,
-                        AUDCLNT_STREAMFLAGS_NOPERSIST,
-                        10_000_000, 0, format_ptr, None,
-                    ).is_ok() {
-                        if let Ok(render_client) = audio_client.GetService::<IAudioRenderClient>() {
-                            let _ = audio_client.Start();
-                            render_clients.insert(device_config.id.clone(), audio_client);
-                            render_outputs.insert(device_config.id.clone(), render_client);
-                            delay_buffers.insert(
-                                device_config.id.clone(),
-                                DelayBuffer::new(device_config.delay_ms, sample_rate, channels as usize),
-                            );
+                // 渲染客户端 - 使用目标设备自己的格式
+                match target_device.Activate::<IAudioClient>(CLSCTX_ALL, None) {
+                    Ok(audio_client) => {
+                        // 获取目标设备的混合格式
+                        match audio_client.GetMixFormat() {
+                            Ok(target_format) => {
+                                let target_wave = &*target_format;
+                                let target_sample_rate = target_wave.nSamplesPerSec;
+                                let target_channels = target_wave.nChannels;
+                                let target_bits = target_wave.wBitsPerSample;
+                                println!("[Router]   格式: {}Hz / {}ch / {}bit", 
+                                    target_sample_rate, target_channels, target_bits);
+                                
+                                // 尝试初始化：先尝试带自动转换，失败则尝试不带
+                                let init_result = audio_client.Initialize(
+                                    AUDCLNT_SHAREMODE_SHARED,
+                                    AUDCLNT_STREAMFLAGS_NOPERSIST | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+                                    10_000_000, 0, target_format, None,
+                                ).or_else(|_| {
+                                    // 备用方案：不使用自动转换标志
+                                    audio_client.Initialize(
+                                        AUDCLNT_SHAREMODE_SHARED,
+                                        AUDCLNT_STREAMFLAGS_NOPERSIST,
+                                        10_000_000, 0, target_format, None,
+                                    )
+                                }).or_else(|_| {
+                                    // 备用方案2：使用更小的缓冲区
+                                    audio_client.Initialize(
+                                        AUDCLNT_SHAREMODE_SHARED,
+                                        AUDCLNT_STREAMFLAGS_NOPERSIST,
+                                        5_000_000, 0, target_format, None,
+                                    )
+                                });
+                                
+                                match init_result {
+                                    Ok(_) => {
+                                        let target_channels = target_wave.nChannels as usize;
+                                        
+                                        match audio_client.GetService::<IAudioRenderClient>() {
+                                            Ok(render_client) => {
+                                                let _ = audio_client.Start();
+                                                render_clients.insert(device_config.id.clone(), audio_client);
+                                                render_outputs.insert(device_config.id.clone(), render_client);
+                                                delay_buffers.insert(
+                                                    device_config.id.clone(),
+                                                    DelayBuffer::new(device_config.delay_ms, sample_rate, target_channels),
+                                                );
+                                                target_channels_map.insert(device_config.id.clone(), target_channels);
+                                                println!("[Router]   状态: ✓ 初始化成功");
+                                            }
+                                            Err(e) => println!("[Router]   状态: ✗ 渲染客户端获取失败 {:?}", e),
+                                        }
+                                    }
+                                    Err(e) => println!("[Router]   状态: ✗ 音频客户端初始化失败 {:?}", e),
+                                }
+                            }
+                            Err(e) => println!("[Router]   状态: ✗ 混合格式获取失败 {:?}", e),
                         }
                     }
+                    Err(e) => println!("[Router]   状态: ✗ 音频客户端激活失败 {:?}", e),
                 }
+                
+                // 蓝牙设备初始化间隔，避免资源竞争
+                thread::sleep(Duration::from_millis(100));
+            } else {
+                println!("[Router]   状态: ✗ 设备获取失败");
             }
         }
+        
+        println!("[Router]");
+        println!("[Router] ┌─────────────────────────────────────────┐");
+        println!("[Router] │  初始化完成: 成功 {} 个 / 总计 {} 个      │", render_clients.len(), device_index);
+        println!("[Router] └─────────────────────────────────────────┘");
 
         // 主循环
         while running.load(Ordering::SeqCst) {
@@ -443,20 +507,23 @@ impl AudioRouter {
             // 渲染到目标设备
             for (device_id, render_client) in render_outputs.iter() {
                 if let Some(buffer) = delay_buffers.get_mut(device_id) {
-                    if let Ok(out_ptr) = render_client.GetBuffer(num_frames) {
-                        if !out_ptr.is_null() {
-                            let out_samples = std::slice::from_raw_parts_mut(
-                                out_ptr as *mut f32,
-                                (num_frames as usize) * channels as usize,
-                            );
+                    if let Some(&target_ch) = target_channels_map.get(device_id) {
+                        if let Ok(out_ptr) = render_client.GetBuffer(num_frames) {
+                            if !out_ptr.is_null() {
+                                let out_samples = std::slice::from_raw_parts_mut(
+                                    out_ptr as *mut f32,
+                                    (num_frames as usize) * target_ch,
+                                );
 
-                            for frame in out_samples.chunks_mut(channels as usize) {
-                                let delayed_frame = buffer.pop_or_silent();
-                                for (ch, sample) in frame.iter_mut().enumerate() {
-                                    *sample = delayed_frame.get(ch).copied().unwrap_or(0.0);
+                                for frame in out_samples.chunks_mut(target_ch) {
+                                    let delayed_frame = buffer.pop_or_silent();
+                                    // 通道映射：将源通道映射到目标通道
+                                    for (ch, sample) in frame.iter_mut().enumerate() {
+                                        *sample = delayed_frame.get(ch % channels as usize).copied().unwrap_or(0.0);
+                                    }
                                 }
+                                let _ = render_client.ReleaseBuffer(num_frames, 0);
                             }
-                            let _ = render_client.ReleaseBuffer(num_frames, 0);
                         }
                     }
                 }

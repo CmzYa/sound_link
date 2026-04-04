@@ -421,6 +421,9 @@ fn save_router_config(config: SavedRouterConfig) -> Result<(), String> {
 }
 
 fn show_window(window: &WebviewWindow) {
+    let _ = window.show();
+    let _ = window.set_focus();
+
     if let Some(tray) = window.app_handle().tray_by_id("main") {
         if let Ok(Some(rect)) = tray.rect() {
             let window_width = 300;
@@ -468,8 +471,6 @@ fn show_window(window: &WebviewWindow) {
         }
     }
 
-    let _ = window.show();
-    let _ = window.set_focus();
     let _ = window.emit("window-shown", ());
 }
 
