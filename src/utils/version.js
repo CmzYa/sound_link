@@ -3,8 +3,8 @@
  * @returns 1: current < latest, -1: current > latest, 0: 相等
  */
 export function compareVersions(current, latest) {
-  const currentParts = current.split(".").map(Number);
-  const latestParts = latest.split(".").map(Number);
+  const currentParts = current.split(".").map(Number).filter((n) => !isNaN(n));
+  const latestParts = latest.split(".").map(Number).filter((n) => !isNaN(n));
 
   for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
     const currentPart = currentParts[i] || 0;

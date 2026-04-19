@@ -13,6 +13,7 @@ use windows::Win32::System::Com::{
 };
 
 use super::delay_buffer::DelayBuffer;
+use super::escape_powershell_string;
 use super::volume_sync::VolumeSync;
 use crate::router::{RouterConfig, RouterStatus, ValidationResult, VirtualDeviceStatus};
 
@@ -36,6 +37,7 @@ pub struct AudioRouter {
     original_default_device_id: Option<String>,     // 原默认设备ID
     shared_volumes: Arc<Mutex<HashMap<String, f32>>>,   // 共享音量设置
     shared_delays: Arc<Mutex<HashMap<String, u32>>>,    // 共享延迟设置
+    last_error: Arc<Mutex<Option<String>>>,         // 最近一次路由错误
 }
 
 impl AudioRouter {
@@ -54,6 +56,7 @@ impl AudioRouter {
             original_default_device_id: None,
             shared_volumes: Arc::new(Mutex::new(HashMap::new())),
             shared_delays: Arc::new(Mutex::new(HashMap::new())),
+            last_error: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -94,12 +97,14 @@ impl AudioRouter {
     }
 
     fn get_device_name_by_id(device_id: &str) -> Option<String> {
+        let safe_id = escape_powershell_string(device_id);
+
         let mut cmd = Command::new("powershell");
         cmd.args([
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
             "-Command",
-            &format!("chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (Get-AudioDevice -Id '{}').Name", device_id)
+            &format!("chcp 65001 > $null; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; (Get-AudioDevice -Id '{}').Name", safe_id)
         ]);
 
         #[cfg(windows)]
@@ -221,10 +226,14 @@ impl AudioRouter {
         let config = self.config.clone();
         let shared_volumes = self.shared_volumes.clone();
         let shared_delays = self.shared_delays.clone();
+        let last_error = self.last_error.clone();
 
         let handle = thread::spawn(move || unsafe {
             if let Err(e) = Self::router_loop(vb_cable_id, valid_target_ids, config, running, shared_volumes, shared_delays) {
                 eprintln!("Router loop error: {}", e);
+                if let Ok(mut err) = last_error.lock() {
+                    *err = Some(e);
+                }
             }
         });
 
@@ -233,10 +242,12 @@ impl AudioRouter {
     }
 
     fn set_default_device(&self, device_id: &str) -> Result<(), String> {
+        let safe_id = escape_powershell_string(device_id);
+
         let mut cmd = Command::new("powershell");
         cmd.args([
             "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
-            &format!("Set-AudioDevice -Id '{}' -Default", device_id),
+            &format!("Set-AudioDevice -Id '{}' -Default", safe_id),
         ]);
 
         #[cfg(windows)]
@@ -266,6 +277,11 @@ impl AudioRouter {
 
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
+    }
+
+    /// 获取最近一次路由错误（消费后清除）
+    pub fn take_last_error(&self) -> Option<String> {
+        self.last_error.lock().ok().and_then(|mut e| e.take())
     }
 
     pub fn get_status(&self) -> RouterStatus {
@@ -552,5 +568,10 @@ impl Drop for AudioRouter {
     }
 }
 
+// Safety: AudioRouter 的所有字段在跨线程访问时均通过 Mutex 保护。
+// running 使用 AtomicBool，是线程安全的。
+// shared_volumes 和 shared_delays 使用 Arc<Mutex<...>>，是线程安全的。
+// thread_handle 仅在持有 Mutex 时访问。
+// AudioRouter 本身不直接被多线程共享，而是通过 AppState 中的 Mutex 间接访问。
 unsafe impl Send for AudioRouter {}
 unsafe impl Sync for AudioRouter {}

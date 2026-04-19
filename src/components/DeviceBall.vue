@@ -40,7 +40,7 @@ const emit = defineEmits(["click"]);
 
 const deviceIcon = computed(() => {
   if (props.isLoading) return Loader2;
-  const deviceType = props.device.type || props.device.device_type;
+  const deviceType = props.device.type;
   switch (deviceType) {
     case "speakers":
       return Speaker;

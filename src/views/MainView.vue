@@ -11,6 +11,7 @@ import {
   Radio,
   Route,
   RefreshCw,
+  ExternalLink,
 } from "lucide-vue-next";
 import DeviceBall from "../components/DeviceBall.vue";
 import SettingsView from "./SettingsView.vue";
@@ -336,6 +337,13 @@ async function toggleRouting() {
   } catch (e) {
     console.error("Failed to toggle routing:", e);
     alert(e);
+    // 路由启动失败时检查后端错误
+    try {
+      const err = await invoke("get_router_error");
+      if (err) {
+        isRoutingActive.value = false;
+      }
+    } catch (_) {}
   } finally {
     switchingDeviceId.value = null;
   }

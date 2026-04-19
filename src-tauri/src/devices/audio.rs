@@ -166,7 +166,8 @@ fn parse_device_info(device_id: &str, raw_name: &str) -> (String, String) {
     } else if name_lower.contains("hdmi") || id_lower.contains("hdmi") {
         ("hdmi".to_string(), raw_name.to_string())
     } else if name_lower.contains("bluetooth") || name_lower.contains("蓝牙") {
-        ("bluetooth".to_string(), raw_name.to_string())
+        let name = extract_hardware_name(raw_name, "蓝牙");
+        ("bluetooth".to_string(), name)
     } else {
         ("speakers".to_string(), raw_name.to_string())
     };

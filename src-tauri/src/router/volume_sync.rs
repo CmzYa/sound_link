@@ -11,7 +11,6 @@ pub struct VolumeSync {
     last_virtual_device_volume: f32,                                  // 上次虚拟设备音量
     last_target_system_volumes: HashMap<String, f32>,                // 上次目标设备音量
     last_sync_time: Instant,                                         // 上次同步时间（防抖）
-    bidirectional_enabled: bool,                                     // 是否启用双向同步
 }
 
 struct TargetVolumeChange {
@@ -30,12 +29,7 @@ impl VolumeSync {
             last_virtual_device_volume: 1.0,
             last_target_system_volumes: HashMap::new(),
             last_sync_time: Instant::now(),
-            bidirectional_enabled: true,
         }
-    }
-
-    pub fn set_bidirectional(&mut self, enabled: bool) {
-        self.bidirectional_enabled = enabled;
     }
 
     pub fn add_target(&mut self, device_id: String, volume_control: IAudioEndpointVolume) {
@@ -70,7 +64,7 @@ impl VolumeSync {
         if virtual_volume_changed {
             self.last_virtual_device_volume = current_virtual_volume;
             self.sync_virtual_to_all_targets(current_virtual_volume, is_muted);
-        } else if self.bidirectional_enabled {
+        } else {
             // 目标设备音量变化 -> 反向同步
             if let Some(change) = self.detect_target_volume_change(current_virtual_volume) {
                 let _ = virtual_device_volume_control.SetMasterVolumeLevelScalar(

@@ -4,6 +4,11 @@ mod volume_sync;
 
 pub use router::AudioRouter;
 
+/// 转义 PowerShell 字符串中的单引号，防止命令注入
+pub fn escape_powershell_string(s: &str) -> String {
+    s.replace('\'', "''")
+}
+
 use serde::{Deserialize, Serialize};
 
 /// 路由设备配置

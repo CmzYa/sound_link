@@ -6,7 +6,8 @@ mod router;
 use auto_launch::AutoLaunchBuilder;
 use devices::{AudioDeviceManager, Device, DeviceManager};
 use router::{
-    AudioRouter, RouterConfig, RouterDevice, RouterStatus, ValidationResult, VirtualDeviceStatus,
+    escape_powershell_string, AudioRouter, RouterConfig, RouterDevice, RouterStatus,
+    ValidationResult, VirtualDeviceStatus,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -114,13 +115,15 @@ fn set_default_device(device_id: String) -> Result<(), String> {
     #[cfg(windows)]
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+    let safe_id = escape_powershell_string(&device_id);
+
     let mut cmd = Command::new("powershell");
     cmd.args([
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        &format!("Set-AudioDevice -Id '{}' -Default", device_id),
+        &format!("Set-AudioDevice -Id '{}' -Default", safe_id),
     ]);
 
     #[cfg(windows)]
@@ -226,7 +229,7 @@ fn get_config(state: tauri::State<AppState>) -> AppConfig {
 fn set_config(
     advanced_material: Option<bool>,
     auto_start: Option<bool>,
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
     let mut config = state.config.lock().unwrap();
@@ -328,6 +331,12 @@ fn get_router_status(state: tauri::State<AppState>) -> RouterStatus {
 }
 
 #[tauri::command]
+fn get_router_error(state: tauri::State<AppState>) -> Option<String> {
+    let router = state.router.lock().unwrap();
+    router.take_last_error()
+}
+
+#[tauri::command]
 fn set_router_device_volume(
     device_id: String,
     volume: f32,
@@ -390,11 +399,15 @@ fn get_saved_router_config() -> SavedRouterConfig {
 
 #[tauri::command]
 fn get_auto_start_status(state: tauri::State<AppState>) -> bool {
-    let config = state.config.lock().unwrap();
+    // 先读取配置值，立即释放锁
+    let config_auto_start = {
+        let config = state.config.lock().unwrap();
+        config.auto_start
+    };
 
     let exe_path = match std::env::current_exe() {
         Ok(path) => path,
-        Err(_) => return config.auto_start,
+        Err(_) => return config_auto_start,
     };
 
     if let Ok(auto) = AutoLaunchBuilder::new()
@@ -403,16 +416,16 @@ fn get_auto_start_status(state: tauri::State<AppState>) -> bool {
         .build()
     {
         let is_enabled = auto.is_enabled().unwrap_or(false);
-        if is_enabled != config.auto_start {
-            drop(config);
+        if is_enabled != config_auto_start {
+            // 独立作用域更新配置，避免与上面的读取产生死锁
             let mut config = state.config.lock().unwrap();
             config.auto_start = is_enabled;
             let _ = save_config(&config);
             return is_enabled;
         }
-        return config.auto_start;
+        return config_auto_start;
     }
-    config.auto_start
+    config_auto_start
 }
 
 #[tauri::command]
@@ -420,10 +433,8 @@ fn save_router_config(config: SavedRouterConfig) -> Result<(), String> {
     save_router_config_file(&config)
 }
 
-fn show_window(window: &WebviewWindow) {
-    let _ = window.show();
-    let _ = window.set_focus();
-
+/// 将窗口定位到托盘图标附近
+fn position_window_near_tray(window: &WebviewWindow) {
     if let Some(tray) = window.app_handle().tray_by_id("main") {
         if let Ok(Some(rect)) = tray.rect() {
             let window_width = 300;
@@ -470,61 +481,19 @@ fn show_window(window: &WebviewWindow) {
                 window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
         }
     }
+}
 
+fn show_window(window: &WebviewWindow) {
+    let _ = window.show();
+    let _ = window.set_focus();
+    position_window_near_tray(window);
     let _ = window.emit("window-shown", ());
 }
 
 fn show_settings_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.emit("show-settings", ());
-
-        if let Some(tray) = app.tray_by_id("main") {
-            if let Ok(Some(rect)) = tray.rect() {
-                let window_width = 300;
-                let window_height = 280;
-                let margin = 210;
-
-                let tray_pos: tauri::PhysicalPosition<i32> = rect.position.to_physical(1.0);
-                let tray_size: tauri::PhysicalSize<i32> = rect.size.to_physical(1.0);
-
-                let tray_x = tray_pos.x;
-                let tray_y = tray_pos.y;
-                let tray_h = tray_size.height;
-
-                let mut x = tray_x;
-                let mut y = tray_y + tray_h - 5;
-
-                if let Some(monitor) = window.current_monitor().ok().flatten() {
-                    let work_area = monitor.work_area();
-                    let work_x = work_area.position.x;
-                    let work_y = work_area.position.y;
-                    let work_right = work_x + work_area.size.width as i32;
-                    let work_bottom = work_y + work_area.size.height as i32;
-
-                    if y + window_height > work_bottom {
-                        y = tray_y - window_height - margin;
-                    }
-
-                    if x + window_width > work_right {
-                        x = work_right - window_width - margin;
-                    }
-                    if x < work_x {
-                        x = work_x + margin;
-                    }
-
-                    if y < work_y {
-                        y = work_y + margin;
-                    }
-                    if y + window_height > work_bottom {
-                        y = work_bottom - window_height - margin;
-                    }
-                }
-
-                let _ = window
-                    .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
-            }
-        }
-
+        position_window_near_tray(&window);
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -606,6 +575,7 @@ fn main() {
             start_routing,
             stop_routing,
             get_router_status,
+            get_router_error,
             set_router_device_volume,
             set_router_device_delay,
             validate_routing_targets,

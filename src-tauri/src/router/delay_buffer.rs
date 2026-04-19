@@ -5,6 +5,7 @@ pub struct DelayBuffer {
     sample_buffer: VecDeque<f32>,   // 音频采样缓冲区
     delay_sample_count: usize,      // 延迟采样数
     channel_count: usize,           // 通道数
+    max_buffer_len: usize,          // 缓冲区最大容量，防止内存无限增长
 }
 
 impl DelayBuffer {
@@ -13,16 +14,28 @@ impl DelayBuffer {
             * channel_count)
             .max(channel_count);
 
+        // 缓冲区容量：至少2秒或延迟所需，最多10秒音频数据
+        let needed_capacity = (sample_rate as usize * channel_count * 2).max(delay_sample_count * 4);
+        let max_capacity = sample_rate as usize * channel_count * 10;
+        let max_buffer_len = needed_capacity.min(max_capacity);
+
         Self {
             sample_buffer: VecDeque::with_capacity(delay_sample_count + 1000),
             delay_sample_count,
             channel_count,
+            max_buffer_len,
         }
     }
 
-    /// 批量写入音频数据
+    /// 批量写入音频数据，超出容量时丢弃最旧数据
     pub fn push_slice(&mut self, samples: &[f32]) {
         self.sample_buffer.extend(samples);
+
+        // 超出最大容量时丢弃最旧的数据
+        if self.sample_buffer.len() > self.max_buffer_len {
+            let excess = self.sample_buffer.len() - self.max_buffer_len;
+            self.sample_buffer.drain(..excess);
+        }
     }
 
     /// 读取一帧，延迟期内返回静音
@@ -46,6 +59,7 @@ impl DelayBuffer {
         self.delay_sample_count = new_delay_sample_count;
     }
 
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.sample_buffer.clear();
     }
